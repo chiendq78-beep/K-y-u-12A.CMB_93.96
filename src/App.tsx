@@ -116,7 +116,8 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
 
   // Persistence with Firestore (starts with defaults to avoid flash, then updates via observers)
-  const [classmates, setClassmates] = useState<Classmate[]>(DEFAULT_CLASSMATES);
+  const [classmates, setClassmates] = useState<Classmate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Main navigation tabs state: 'portrait' | 'collective' | 'memories' | 'guestbook' | 'video'
   const [activeMainTab, setActiveMainTab] = useState<"portrait" | "collective" | "memories" | "guestbook" | "video">("portrait");
@@ -150,71 +151,11 @@ export default function App() {
   }>({ status: "idle", total: 0, current: 0 });
 
   // Media states for collective photos, memories, and videos
-  const [collectivePhotos, setCollectivePhotos] = useState<{ id: string; title: string; description: string; url: string; date?: string }[]>([
-    {
-      id: "col-1",
-      title: "Tập Thể Lớp Dưới Sân Trường Cổ Kính (1995)",
-      description: "Tấm ảnh chụp chung trước thềm kỳ thi tốt nghiệp niên khóa 93-96. Tà áo trắng bay dạt dào dưới tán bàng xanh.",
-      url: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=1200",
-      date: "Tháng 05, 1995"
-    },
-    {
-      id: "col-2",
-      title: "Chuyến Dã Ngoại Cọp Sơn Tây (1994)",
-      description: "Bữa trưa hối hả ăn xôi cuộn, ngã lăn ra bãi cỏ chọc ghẹo nhau đến khản tiếng dưới ánh nắng đầu thu mát rượi.",
-      url: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=1200",
-      date: "Mùa thu, 1994"
-    },
-    {
-      id: "col-3",
-      title: "Ngày Hội Giao Lưu Bóng Đá 12A.CMB (1996)",
-      description: "Hò hét khản cả cổ bên lề sân bóng đất đỏ. Hôm ấy lớp mình vắng vài bạn, nhưng tiếng hô vang thì rộn rã tuyệt vời.",
-      url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1200",
-      date: "Tháng 03, 1996"
-    }
-  ]);
+  const [collectivePhotos, setCollectivePhotos] = useState<{ id: string; title: string; description: string; url: string; date?: string }[]>([]);
 
-  const [memoryPhotos, setMemoryPhotos] = useState<{ id: string; title: string; description: string; url: string }[]>([
-    {
-      id: "mem-1",
-      title: "Cuốn Sổ Sứ Điệp & Lưu Bút",
-      description: "Dòng mực tím nắn nót, nét chữ thanh nét đậm, trao nhau lời hứa sẽ mãi nhớ về một thuở áo trắng mộc mơ.",
-      url: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=600"
-    },
-    {
-      id: "mem-2",
-      title: "Băng Cassette Nhạc Trịnh & Thơ Ca học trò",
-      description: "Những chiều mất điện cả đám túm tụm quanh chiếc cassette chạy pin, nghe bản tình ca bất hủ dắt ta tìm lại những ngày thơ bé.",
-      url: "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600"
-    },
-    {
-      id: "mem-3",
-      title: "Giấy Khen Học Kỳ & Hoa Phượng Khô",
-      description: "Những cánh phượng hồng rực rỡ, ép cẩn thận phẳng phiu ở trang vở địa lý học trò, nay đã úa màu nhưng kỷ niệm vẫn vẹn nguyên.",
-      url: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80&w=600"
-    },
-    {
-      id: "mem-4",
-      title: "Dàn Xe Đạp Phượng Hoàng Sân Trường",
-      description: "Dưới bóng xà cừ rợp lá, tiếng đùm xe chạm đều đinh đang ngân vang mỗi chiều tan học gió thổi tóc bay bồng bềnh.",
-      url: "https://images.unsplash.com/photo-1519003722824-194d4455a60c?auto=format&fit=crop&q=80&w=600"
-    }
-  ]);
+  const [memoryPhotos, setMemoryPhotos] = useState<{ id: string; title: string; description: string; url: string }[]>([]);
 
-  const [memoryVideos, setMemoryVideos] = useState<{ id: string; title: string; description: string; url: string }[]>([
-    {
-      id: "vid-1",
-      title: "Thanh Xuân Lớp Học 12A.CMB (Giai điệu Mong Ước Kỷ Niệm Xưa)",
-      description: "Dòng cảm xúc chứa chan thời áo trắng bay lượn, những bóng bàng, cánh phượng đỏ hồng, hành lang đầy gió năm xưa.",
-      url: "https://www.youtube.com/embed/zWeREb-pLrs"
-    },
-    {
-      id: "vid-2",
-      title: "Phim Tư Liệu Bế Giảng Phượng Vĩ Ngày Ấy (VHS Rip)",
-      description: "Thước phim màu mờ thô cũ ghi lại khoảng khắc rưng rưng ghi lưu bút lên lưng áo bạn học thân quý ngày bế giảng 1996.",
-      url: "https://www.youtube.com/embed/dQw4w9WgXcQ"
-    }
-  ]);
+  const [memoryVideos, setMemoryVideos] = useState<{ id: string; title: string; description: string; url: string }[]>([]);
 
   // Seeding helper to initialize Firestore when database is completely empty
   const seedDatabase = async () => {
@@ -371,10 +312,39 @@ export default function App() {
     let unsubVid: (() => void) | null = null;
     let unsubAlbums: (() => void) | null = null;
     let unsubGuestbook: (() => void) | null = null;
+    let safetyTimeout: any = null;
 
     const initDataAndListen = async () => {
-      await seedDatabase();
+      // Direct optimization check: if database has already been seeded on this client, do NOT block on sequential checks!
+      const isSeeded = localStorage.getItem("ky-yeu-db-seeded") === "true";
+      if (!isSeeded) {
+        await seedDatabase();
+        localStorage.setItem("ky-yeu-db-seeded", "true");
+      }
       if (!active) return;
+
+      let classmatesLoaded = false;
+      let colLoaded = false;
+      let memLoaded = false;
+      let vidLoaded = false;
+      let albumsLoaded = false;
+      let guestbookLoaded = false;
+
+      const checkAllLoaded = () => {
+        if (classmatesLoaded && colLoaded && memLoaded && vidLoaded && albumsLoaded && guestbookLoaded) {
+          setIsLoading(false);
+          if (safetyTimeout) {
+            clearTimeout(safetyTimeout);
+          }
+        }
+      };
+
+      // Set up a safety loading release after 2.5s maximum to avoid freezing on slow connections
+      safetyTimeout = setTimeout(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      }, 2500);
 
       unsubClassmates = onSnapshot(collection(db, "classmates"), (snapshot) => {
         if (!active) return;
@@ -385,8 +355,12 @@ export default function App() {
         // Sort classmates by name
         list.sort((a, b) => a.name.localeCompare(b.name));
         setClassmates(list);
+        classmatesLoaded = true;
+        checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "classmates");
+        classmatesLoaded = true;
+        checkAllLoaded();
       });
 
       unsubCol = onSnapshot(collection(db, "collectivePhotos"), (snapshot) => {
@@ -396,8 +370,12 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() });
         });
         setCollectivePhotos(list);
+        colLoaded = true;
+        checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "collectivePhotos");
+        colLoaded = true;
+        checkAllLoaded();
       });
 
       unsubMem = onSnapshot(collection(db, "memoryPhotos"), (snapshot) => {
@@ -407,8 +385,12 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() });
         });
         setMemoryPhotos(list);
+        memLoaded = true;
+        checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "memoryPhotos");
+        memLoaded = true;
+        checkAllLoaded();
       });
 
       unsubVid = onSnapshot(collection(db, "memoryVideos"), (snapshot) => {
@@ -418,8 +400,12 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() });
         });
         setMemoryVideos(list);
+        vidLoaded = true;
+        checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "memoryVideos");
+        vidLoaded = true;
+        checkAllLoaded();
       });
 
       unsubAlbums = onSnapshot(collection(db, "collectiveAlbums"), (snapshot) => {
@@ -429,8 +415,12 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() } as CollectiveAlbum);
         });
         setCollectiveAlbums(list);
+        albumsLoaded = true;
+        checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "collectiveAlbums");
+        albumsLoaded = true;
+        checkAllLoaded();
       });
 
       unsubGuestbook = onSnapshot(collection(db, "guestbook"), (snapshot) => {
@@ -446,8 +436,12 @@ export default function App() {
           return tB - tA;
         });
         setGuestbookEntries(list);
+        guestbookLoaded = true;
+        checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "guestbook");
+        guestbookLoaded = true;
+        checkAllLoaded();
       });
     };
 
@@ -455,6 +449,7 @@ export default function App() {
 
     return () => {
       active = false;
+      if (safetyTimeout) clearTimeout(safetyTimeout);
       if (unsubClassmates) unsubClassmates();
       if (unsubCol) unsubCol();
       if (unsubMem) unsubMem();
@@ -1474,6 +1469,28 @@ export default function App() {
 
   // Tripled loops to ensure smooth continuous slide
   const fullMarqueeText = [...marqueeSlogans, ...marqueeSlogans, ...marqueeSlogans].join("                ");
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-[#FAF6EE] flex flex-col items-center justify-center z-50">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#5A5A40] via-yellow-600 to-[#5A5A40]"></div>
+        <div className="text-center p-6 max-w-sm">
+          <div className="relative w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+            <div className="absolute inset-0 border-4 border-dashed border-[#5A5A40]/30 rounded-full animate-spin [animation-duration:8s]"></div>
+            <div className="absolute inset-2 border border-dashed border-[#5A5A40]/60 rounded-full"></div>
+            <BookOpen className="text-[#5A5A40] animate-pulse" size={24} />
+          </div>
+          <h2 className="font-serif text-lg font-bold text-stone-800 tracking-wide mb-1 uppercase">
+            Kỷ Yếu Lớp 12A
+          </h2>
+          <div className="w-16 h-0.5 bg-[#5A5A40]/30 mx-auto my-2"></div>
+          <p className="text-xs text-[#5A5A40] font-sans font-bold animate-pulse">
+            Đang tìm lại những mảnh ký ức xưa...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F9F7F2] text-stone-800 font-serif selection:bg-[#E5E0C0] selection:text-[#5A5A40] pb-20 relative overflow-x-hidden">
