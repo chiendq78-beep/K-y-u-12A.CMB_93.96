@@ -1,0 +1,238 @@
+{
+  "entities": {
+    "Classmate": {
+      "title": "Classmate",
+      "description": "Information about a classmate in the yearbook",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier (usually document ID)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the classmate"
+        },
+        "nickname": {
+          "type": "string",
+          "description": "Affectionate nickname"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the classmate"
+        },
+        "group": {
+          "type": "string",
+          "description": "Classroom group or division"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Base64 or external URL to the classmate avatar image"
+        },
+        "quote": {
+          "type": "string",
+          "description": "A heart-warming quote/message or wish"
+        },
+        "funnyChat": {
+          "type": "string",
+          "description": "A funny dialogue or conversation piece"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["id", "name", "role", "group", "avatarUrl", "quote"]
+    },
+    "CollectivePhoto": {
+      "title": "CollectivePhoto",
+      "description": "Collective landscape photo showing class activities",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "Base64 encoded JPEG or real image URL"
+        },
+        "date": {
+          "type": "string",
+          "description": "Approximate date or timeframe of the photo"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "title", "description", "url"]
+    },
+    "MemoryPhoto": {
+      "title": "MemoryPhoto",
+      "description": "A photograph showing memory items, logs or other artifacts",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "Base64 encoded JPEG or real image URL"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "title", "description", "url"]
+    },
+    "MemoryVideo": {
+      "title": "MemoryVideo",
+      "description": "An embedding link to a video on YouTube or other streaming provider",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "The URL or embedding link"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "title", "description", "url"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment or short message left under shared photos or memory items",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "itemId", "author", "content"]
+    },
+    "CollectiveAlbum": {
+      "title": "CollectiveAlbum",
+      "description": "An album containing a set of collective photos",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "name"]
+    },
+    "GuestbookEntry": {
+      "title": "GuestbookEntry",
+      "description": "A yearbook journal entry, essay or sentiment letter sent by a classmate",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sender": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "bgStyle": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "sender", "title", "content"]
+    }
+  },
+  "firestore": {
+    "/classmates/{classmateId}": {
+      "schema": "Classmate",
+      "description": "Collection of classmate records in the yearbook"
+    },
+    "/collectivePhotos/{photoId}": {
+      "schema": "CollectivePhoto",
+      "description": "Collection of landscape collective photos"
+    },
+    "/memoryPhotos/{memoryId}": {
+      "schema": "MemoryPhoto",
+      "description": "Collection of memory artifacts"
+    },
+    "/memoryVideos/{videoId}": {
+      "schema": "MemoryVideo",
+      "description": "Collection of memory videos"
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Collection of comments under items"
+    },
+    "/collectiveAlbums/{albumId}": {
+      "schema": "CollectiveAlbum",
+      "description": "Collection of photo albums for the collective tab"
+    },
+    "/guestbook/{entryId}": {
+      "schema": "GuestbookEntry",
+      "description": "Collection of yearbook notes and classmate confessions"
+    }
+  }
+}

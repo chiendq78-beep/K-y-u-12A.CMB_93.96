@@ -1,0 +1,6 @@
+{
+  "name": "Ky Yeu Lop Chung Ta",
+  "description": "Trang web luu giu ky niem ky yeu lop hoc voi nhung hinh anh rang ro va loi chuc, tam su dong day cam xuc.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
