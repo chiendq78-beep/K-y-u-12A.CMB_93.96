@@ -49,8 +49,8 @@ import {
 } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "./firebase";
 
-// Reusable image compression function using HTML5 Canvas to keep images small and prevent localStorage QuotaExceeded errors
-const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+// Reusable image compression function using HTML5 Canvas to keep images small/sharp and prevent Firestore 1MB document size limits
+const compressImage = (file: File, maxWidth = 1800, maxHeight = 1800, quality = 0.88): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -83,8 +83,33 @@ const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.
         }
 
         ctx.drawImage(img, 0, 0, width, height);
-        // Compress as image/jpeg 
-        const compressedBase64 = canvas.toDataURL("image/jpeg", quality);
+        
+        // Iteratively compress file to get maximum quality while staying under 920KB (to account for Firestore 1MB limits)
+        let currentQuality = quality;
+        let compressedBase64 = canvas.toDataURL("image/jpeg", currentQuality);
+        
+        // Decrease quality gradually if image is extremely complex
+        while (compressedBase64.length > 920000 && currentQuality > 0.4) {
+          currentQuality -= 0.08;
+          compressedBase64 = canvas.toDataURL("image/jpeg", currentQuality);
+        }
+        
+        // If still too large, resize scale down and compress
+        if (compressedBase64.length > 920000) {
+          let currentScale = 0.8;
+          while (compressedBase64.length > 920000 && currentScale > 0.3) {
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = Math.round(width * currentScale);
+            tempCanvas.height = Math.round(height * currentScale);
+            const tempCtx = tempCanvas.getContext("2d");
+            if (tempCtx) {
+              tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+              compressedBase64 = tempCanvas.toDataURL("image/jpeg", 0.75);
+            }
+            currentScale -= 0.15;
+          }
+        }
+
         resolve(compressedBase64);
       };
       img.onerror = (err) => reject(err);
@@ -1188,8 +1213,8 @@ export default function App() {
         return;
       }
       try {
-        // High compression for portrait avatar (500x500 is perfect for profile layout, under 50KB)
-        const compressed = await compressImage(file, 500, 500, 0.7);
+        // High quality sharp compression for portrait avatar (1000x1000, quality 0.88)
+        const compressed = await compressImage(file, 1000, 1000, 0.88);
         setUploadedBase64(compressed);
       } catch (err) {
         console.error("Lỗi tự động nén ảnh chân dung:", err);
@@ -1253,8 +1278,8 @@ export default function App() {
         return;
       }
       try {
-        // Medium compression for large collective landscape photo
-        const compressed = await compressImage(file, 1000, 1000, 0.7);
+        // High quality compression for large collective landscape photo (1920x1920, quality 0.9)
+        const compressed = await compressImage(file, 1920, 1920, 0.9);
         setNewColUpload(compressed);
       } catch (err) {
         console.error("Lỗi tự động nén ảnh tập thể lớp:", err);
@@ -1275,8 +1300,8 @@ export default function App() {
         return;
       }
       try {
-        // Medium compression for memories/artifacts and notes photo
-        const compressed = await compressImage(file, 900, 900, 0.7);
+        // High quality compression for memories/artifacts and notes photo (1600x1600, quality 0.9)
+        const compressed = await compressImage(file, 1600, 1600, 0.9);
         setNewMemUpload(compressed);
       } catch (err) {
         console.error("Lỗi tự động nén ảnh hiện vật kỉ niệm:", err);
