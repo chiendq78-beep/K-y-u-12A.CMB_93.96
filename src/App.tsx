@@ -93,6 +93,39 @@ const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.
   });
 };
 
+const vietnameseToIsoDate = (str: string): string => {
+  if (!str) return "";
+  const trimmed = str.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parts = trimmed.split("/");
+  if (parts.length === 3) {
+    const day = parts[0].trim().padStart(2, "0");
+    const month = parts[1].trim().padStart(2, "0");
+    const year = parts[2].trim();
+    if (day.length === 2 && month.length === 2 && year.length === 4) {
+      const dNum = parseInt(day, 10);
+      const mNum = parseInt(month, 10);
+      const yNum = parseInt(year, 10);
+      if (dNum >= 1 && dNum <= 31 && mNum >= 1 && mNum <= 12 && yNum >= 1900) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+  }
+  return "";
+};
+
+const isoToVietnameseDate = (str: string): string => {
+  if (!str) return "";
+  const parts = str.trim().split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return str;
+};
+
+
 // Safe wrapper around localStorage setItem to catch any QuotaExceededError or security restrictions
 const safeSaveToLocalStorage = (key: string, data: any) => {
   try {
@@ -131,6 +164,7 @@ export default function App() {
   const [newGuestbookContent, setNewGuestbookContent] = useState("");
   const [newGuestbookDate, setNewGuestbookDate] = useState("");
   const [newGuestbookBgStyle, setNewGuestbookBgStyle] = useState<string>("yellow");
+  const [guestbookDateMode, setGuestbookDateMode] = useState<"calendar" | "custom">("calendar");
 
   // Album States
   const [collectiveAlbums, setCollectiveAlbums] = useState<CollectiveAlbum[]>([]);
@@ -514,6 +548,7 @@ export default function App() {
     setNewColDate("");
     setNewColAlbumId("");
     setDirectUploadAlbumId(null);
+    setColDateMode("calendar");
   };
 
   // Helper to load image via canvas fallback if raw fetch fails under CORS blocks
@@ -749,6 +784,7 @@ export default function App() {
     setNewGuestbookContent("");
     setNewGuestbookDate("");
     setNewGuestbookBgStyle("yellow");
+    setGuestbookDateMode("calendar");
   };
 
   // Submit new Guestbook Entry / Update existing
@@ -793,7 +829,21 @@ export default function App() {
     setNewGuestbookSender(entry.sender);
     setNewGuestbookTitle(entry.title);
     setNewGuestbookContent(entry.content);
-    setNewGuestbookDate(entry.date || "");
+    const origDate = entry.date || "";
+    setNewGuestbookDate(origDate);
+    
+    // Automatically determine appropriate mode based on loaded date
+    if (origDate) {
+      const iso = vietnameseToIsoDate(origDate);
+      if (iso) {
+        setGuestbookDateMode("calendar");
+      } else {
+        setGuestbookDateMode("custom");
+      }
+    } else {
+      setGuestbookDateMode("calendar");
+    }
+
     setNewGuestbookBgStyle(entry.bgStyle || "yellow");
     setIsGuestbookFormOpen(true);
   };
@@ -834,7 +884,21 @@ export default function App() {
     setEditingColPhotoId(photo.id);
     setNewColTitle(photo.title);
     setNewColDesc(photo.description);
-    setNewColDate(photo.date || "");
+    const origDate = photo.date || "";
+    setNewColDate(origDate);
+    
+    // Automatically determine appropriate mode based on loaded date
+    if (origDate) {
+      const iso = vietnameseToIsoDate(origDate);
+      if (iso) {
+        setColDateMode("calendar");
+      } else {
+        setColDateMode("custom");
+      }
+    } else {
+      setColDateMode("calendar");
+    }
+
     setNewColAlbumId(photo.albumId || "");
     if (photo.url.startsWith("data:")) {
       setNewColUrlChoice("upload");
@@ -880,6 +944,7 @@ export default function App() {
   const [newColUrl, setNewColUrl] = useState("");
   const [newColUpload, setNewColUpload] = useState("");
   const [newColDate, setNewColDate] = useState("");
+  const [colDateMode, setColDateMode] = useState<"calendar" | "custom">("calendar");
 
   const uploadColRef = useRef<HTMLInputElement>(null);
 
@@ -2452,13 +2517,26 @@ export default function App() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
               {guestbookEntries.map((item, idx) => {
-                let bgClass = "bg-[#FEF9E7] border-[#E5E0C0] text-stone-800 shadow-[0_4px_15px_rgba(229,224,192,0.25)]";
+                let cardColor = "#FFFDF5"; // default cream
+                let gridColor = "rgba(62, 115, 171, 0.08)"; // classic ink-blue grid
+                let borderClass = "border-amber-200/50";
+                let tagLabel = "Trang Ô Ly Nắng Ấm";
+
                 if (item.bgStyle === "green") {
-                  bgClass = "bg-[#E8F3E8] border-[#C8DBC8] text-stone-850 shadow-[0_4px_15px_rgba(200,219,200,0.25)]";
+                  cardColor = "#F4FAF2"; // mint green
+                  gridColor = "rgba(16, 120, 16, 0.07)"; // light green grid
+                  borderClass = "border-emerald-250/50";
+                  tagLabel = "Trang Ô Ly Thảo Nguyên";
                 } else if (item.bgStyle === "pink") {
-                  bgClass = "bg-[#FDF2F2] border-[#ECD9D9] text-stone-850 shadow-[0_4px_15px_rgba(236,217,217,0.25)]";
+                  cardColor = "#FFF5F7"; // soft pink
+                  gridColor = "rgba(190, 40, 120, 0.06)"; // soft pink/fuchsia grid
+                  borderClass = "border-rose-250/50";
+                  tagLabel = "Trang Ô Ly Mực Tím";
                 } else if (item.bgStyle === "blue") {
-                  bgClass = "bg-[#F0F4F8] border-[#D6E2ED] text-stone-850 shadow-[0_4px_15px_rgba(214,226,237,0.25)]";
+                  cardColor = "#F2F7FD"; // soft blue
+                  gridColor = "rgba(50, 120, 200, 0.07)"; // blue grid
+                  borderClass = "border-sky-250/50";
+                  tagLabel = "Trang Ô Ly Tuổi Hồng";
                 }
 
                 return (
@@ -2467,52 +2545,98 @@ export default function App() {
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: idx * 0.05 }}
-                    className={`p-6 md:p-8 rounded-sm border relative flex flex-col justify-between overflow-hidden ${bgClass}`}
+                    className={`rounded-sm border relative flex flex-col justify-between overflow-hidden min-h-[280px] ${borderClass}`}
                     style={{
-                      backgroundImage: "radial-gradient(#00000003 1px, transparent 1px)",
-                      backgroundSize: "20px 20px"
+                      backgroundColor: cardColor,
+                      backgroundImage: `
+                        linear-gradient(to right, ${gridColor} 1px, transparent 1px),
+                        linear-gradient(to bottom, ${gridColor} 1px, transparent 1px)
+                      `,
+                      backgroundSize: "20px 20px",
+                      backgroundPosition: "38px 0px",
+                      boxShadow: "1px 1px 0px #fff, 2px 2px 0px rgba(0,0,0,0.03), 3px 3px 0px #fff, 4px 4px 0px rgba(0,0,0,0.03), 0px 8px 24px -4px rgba(0,0,0,0.12)"
                     }}
                   >
-                    {/* Decorative Paper Clip on Scrapbook */}
-                    <div className="absolute top-0 left-12 w-14 h-4 bg-stone-400/25 border-b border-dashed border-stone-500 rounded-b-md shadow-xs opacity-70" />
-
-                    <div className="mt-4">
-                      <h3 className="text-base sm:text-lg font-medium font-serif text-stone-850 tracking-wide border-b border-dashed border-stone-300 pb-2 mb-3 leading-snug">
-                        {item.title}
-                      </h3>
-
-                      <div className="text-xs sm:text-sm text-stone-700 font-sans font-light leading-relaxed whitespace-pre-wrap tracking-wide mb-6">
-                        {item.content}
-                      </div>
+                    {/* Spiral Wire-O Binding Rings */}
+                    <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-around py-6 z-20 pointer-events-none select-none">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="relative flex items-center" style={{ height: "20px" }}>
+                          {/* Punch Hole */}
+                          <div className="w-2.5 h-2.5 rounded-full bg-stone-950/20 border border-stone-200/20 ml-2.5 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.3)] bg-[#E0DEC9]" />
+                          {/* Silver Spiral Ring */}
+                          <div 
+                            className="absolute bg-transparent" 
+                            style={{ 
+                              left: "-2px", 
+                              width: "18px", 
+                              height: "11px", 
+                              borderRadius: "6px", 
+                              border: "1.5px solid #a8a29e", 
+                              borderLeftColor: "transparent",
+                              transform: "rotate(12deg)",
+                              filter: "drop-shadow(1px 1px 1.5px rgba(0,0,0,0.2))"
+                            }} 
+                          />
+                        </div>
+                      ))}
                     </div>
 
-                    <div className="border-t border-dashed border-stone-300 pt-3.5 mt-auto flex items-center justify-between">
+                    {/* Red Schoolbook Margin (Kẻ lề huyền thoại) */}
+                    <div className="absolute top-0 bottom-0 left-[38px] sm:left-[46px] w-[1px] bg-red-400/40 z-10" />
+
+                    {/* Top Right Page stamp */}
+                    <div className="absolute top-2 right-4 flex items-center gap-1.5 text-[9px] font-sans text-stone-400 select-none z-10 pointer-events-none">
+                      <span className="uppercase tracking-widest text-[8px] opacity-75 hidden xs:inline">{tagLabel}</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400/40 hidden xs:inline" />
+                      <span className="font-mono text-stone-500 font-semibold bg-white/40 px-1 py-0.5 border border-dashed border-stone-300">Trang {(idx + 1).toString().padStart(2, "0")}</span>
+                    </div>
+
+                    {/* Writing Area */}
+                    <div className="pl-[50px] sm:pl-[60px] pr-4 sm:pr-6 pt-10 pb-4 flex-1 flex flex-col justify-between z-10">
                       <div>
-                        <p className="text-xs font-semibold text-stone-800 font-sans tracking-wide">
-                          ✍️ <span className="font-serif italic text-sm text-[#405A40] font-normal">{item.sender}</span>
-                        </p>
-                        {item.date && (
-                          <p className="text-[10px] text-stone-500 font-sans mt-0.5">
-                            ⏳ {item.date}
-                          </p>
-                        )}
+                        {/* Title of memory post - handwritten letter style */}
+                        <h3 className="text-sm xs:text-base sm:text-lg font-bold font-serif text-stone-900 border-b border-rose-400/15 pb-1 mb-4 leading-snug tracking-wide">
+                          ✏️ {item.title}
+                        </h3>
+
+                        {/* Story text aligning matching grid spacing (line-height of 20px aligns perfectly on our 20px grid background!) */}
+                        <div 
+                          className="text-xs xs:text-sm text-stone-850 font-serif font-medium whitespace-pre-wrap tracking-wide mb-6 leading-[20px] select-text"
+                          style={{ minHeight: "80px", textShadow: "0.2px 0.2px 0px rgba(0, 0, 0, 0.05)" }}
+                        >
+                          {item.content}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleEditGuestbook(item)}
-                          className="px-2 py-1 text-[10px] uppercase font-sans font-bold border border-[#5A5A40]/25 rounded-xs text-[#5A5A40] hover:bg-white/70 hover:shadow-xs transition-all cursor-pointer"
-                          title="Chỉnh sửa bài viết"
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          onClick={() => handleDeleteGuestbook(item.id)}
-                          className="px-2 py-1 text-[10px] uppercase font-sans font-bold border border-rose-250 rounded-xs text-rose-600 hover:bg-rose-50/75 hover:border-rose-300 transition-all cursor-pointer"
-                          title="Xoá bài viết"
-                        >
-                          Xoá
-                        </button>
+                      {/* Footer signatures and interaction buttons */}
+                      <div className="border-t border-dashed border-stone-300 pt-3 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-stone-800 font-sans tracking-wide">
+                            ✍️ <span className="font-serif italic text-sm text-[#5A5A40] font-normal">{item.sender}</span>
+                          </p>
+                          {item.date && (
+                            <p className="text-[10px] text-stone-500 font-sans mt-0.5 whitespace-nowrap">
+                              ⏳ Giờ: {item.date}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleEditGuestbook(item)}
+                            className="px-2 py-1 text-[10px] uppercase font-sans font-bold border border-[#5A5A40]/30 rounded-xs text-[#5A5A40] bg-white/50 hover:bg-white hover:shadow-xs transition-all cursor-pointer"
+                            title="Chỉnh sửa bài viết"
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            onClick={() => handleDeleteGuestbook(item.id)}
+                            className="px-2 py-1 text-[10px] uppercase font-sans font-bold border border-rose-250 rounded-xs text-rose-600 bg-white/50 hover:bg-rose-50/75 hover:border-rose-300 transition-all cursor-pointer"
+                            title="Xoá bài viết"
+                          >
+                            Xoá
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -3038,16 +3162,70 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
-                      Thời gian / Ngày kỷ niệm
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="VD: Tháng 5, 1996 hoặc 19/05/1996"
-                      value={newColDate}
-                      onChange={(e) => setNewColDate(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide">
+                        Thời gian / Ngày kỷ niệm
+                      </label>
+                      <div className="flex gap-1 bg-stone-200/50 p-0.5 rounded-sm select-none">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setColDateMode("calendar");
+                            const iso = vietnameseToIsoDate(newColDate);
+                            if (iso) {
+                              setNewColDate(isoToVietnameseDate(iso));
+                            } else {
+                              setNewColDate("");
+                            }
+                          }}
+                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
+                            colDateMode === "calendar"
+                              ? "bg-white text-[#5A5A40] shadow-xs"
+                              : "text-stone-500 hover:text-stone-700"
+                          }`}
+                        >
+                          📅 Lịch
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setColDateMode("custom")}
+                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
+                            colDateMode === "custom"
+                              ? "bg-white text-[#5A5A40] shadow-xs"
+                              : "text-stone-500 hover:text-stone-700"
+                          }`}
+                        >
+                          ✍️ Nhập tay
+                        </button>
+                      </div>
+                    </div>
+
+                    {colDateMode === "calendar" ? (
+                      <div className="relative flex items-center">
+                        <input
+                          type="date"
+                          value={vietnameseToIsoDate(newColDate)}
+                          onChange={(e) => {
+                            const isoVal = e.target.value;
+                            setNewColDate(isoToVietnameseDate(isoVal));
+                          }}
+                          className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all font-sans cursor-pointer"
+                        />
+                        {newColDate && (
+                          <div className="absolute right-10 pointer-events-none bg-stone-100 border border-stone-200 rounded-sm px-2 py-0.5 text-[10px] text-stone-600 font-sans font-medium hidden xs:block">
+                            {newColDate}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="VD: Mùa hè 1996 hoặc Tháng 5/1996"
+                        value={newColDate}
+                        onChange={(e) => setNewColDate(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
@@ -3562,16 +3740,70 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
-                      Thời Điểm / Ngày Ký <span className="text-stone-400">(Tùy chọn)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder={`VD: ${new Date().toLocaleDateString("vi-VN")}`}
-                      value={newGuestbookDate}
-                      onChange={(e) => setNewGuestbookDate(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-[#DCD5B0]/80 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide">
+                        Thời Điểm / Ngày Ký <span className="text-stone-400">(Tùy chọn)</span>
+                      </label>
+                      <div className="flex gap-1 bg-stone-200/50 p-0.5 rounded-sm select-none">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGuestbookDateMode("calendar");
+                            const iso = vietnameseToIsoDate(newGuestbookDate);
+                            if (iso) {
+                              setNewGuestbookDate(isoToVietnameseDate(iso));
+                            } else {
+                              setNewGuestbookDate("");
+                            }
+                          }}
+                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
+                            guestbookDateMode === "calendar"
+                              ? "bg-white text-[#5A5A40] shadow-xs"
+                              : "text-stone-500 hover:text-stone-700"
+                          }`}
+                        >
+                          📅 Lịch
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGuestbookDateMode("custom")}
+                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
+                            guestbookDateMode === "custom"
+                              ? "bg-white text-[#5A5A40] shadow-xs"
+                              : "text-stone-500 hover:text-stone-700"
+                          }`}
+                        >
+                          ✍️ Nhập tay
+                        </button>
+                      </div>
+                    </div>
+
+                    {guestbookDateMode === "calendar" ? (
+                      <div className="relative flex items-center">
+                        <input
+                          type="date"
+                          value={vietnameseToIsoDate(newGuestbookDate)}
+                          onChange={(e) => {
+                            const isoVal = e.target.value;
+                            setNewGuestbookDate(isoToVietnameseDate(isoVal));
+                          }}
+                          className="w-full px-3.5 py-2 bg-white border border-[#DCD5B0]/80 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all font-sans cursor-pointer"
+                        />
+                        {newGuestbookDate && (
+                          <div className="absolute right-10 pointer-events-none bg-stone-100 border border-stone-200 rounded-sm px-2 py-0.5 text-[10px] text-stone-600 font-sans font-medium hidden xs:block">
+                            {newGuestbookDate}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={`VD: ${new Date().toLocaleDateString("vi-VN")}`}
+                        value={newGuestbookDate}
+                        onChange={(e) => setNewGuestbookDate(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-white border border-[#DCD5B0]/80 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
+                      />
+                    )}
                   </div>
                 </div>
 
