@@ -1510,7 +1510,7 @@ export default function App() {
       </div>
 
       {/* 2. MAIN HEADER & HERO */}
-      <header className="max-w-7xl mx-auto px-4 pt-12 pb-8 text-center relative">
+      <header className="max-w-6xl mx-auto px-4 pt-12 pb-8 text-center relative">
         <div className="absolute top-2 left-1/2 -translate-x-1/2 opacity-5 pointer-events-none">
           <GraduationCap size={240} className="text-[#5A5A40]" />
         </div>
@@ -1559,10 +1559,10 @@ export default function App() {
       </header>
 
       {/* VINTAGE SCRAPBOOK TABS NAVIGATION */}
-      <div className="max-w-7xl mx-auto px-4 mb-10 relative z-30">
+      <div className="max-w-6xl mx-auto px-4 mb-10 relative z-30">
         <div className="flex flex-wrap items-end justify-center gap-2 md:gap-4 border-b border-[#E5E0C0] pb-px">
           {[
-            { id: "portrait", label: "📸 ẢNH CHÂN DUNG", desc: "Lật về tuổi thơ", icon: <User size={15} /> },
+            { id: "portrait", label: "📸 CHÂN DUNG", desc: "Lật về tuổi thơ", icon: <User size={15} /> },
             { id: "collective", label: "👥 TẬP THỂ LỚP", desc: "Khoảnh khắc ký ức chung", icon: <Users size={15} /> },
             { id: "memories", label: "🌸 ẢNH KỈ VẬT", desc: "Hiện vật & lưu bút", icon: <ImageIcon size={15} /> },
             { id: "guestbook", label: "📝 LƯU BÚT", desc: "Tâm sự & ký sự lớp", icon: <BookOpen size={15} /> },
@@ -1603,7 +1603,7 @@ export default function App() {
                 )}
 
                 {/* Tab Label & Icon Wrapper */}
-                <div className="text-xs md:text-[15px] tracking-wide uppercase flex items-center justify-center gap-2 font-sans font-semibold transition-transform duration-300">
+                <div className="text-[10px] sm:text-xs md:text-[15px] tracking-wide uppercase flex items-center justify-center gap-1.5 font-sans font-semibold transition-transform duration-300 whitespace-nowrap">
                   <span className={`transition-transform duration-300 ${isActive ? "scale-110 text-[#5A5A40]" : "opacity-80 group-hover:scale-115"}`}>
                     {tab.icon}
                   </span>
@@ -1631,7 +1631,7 @@ export default function App() {
       {activeMainTab === "portrait" && (
         <>
           {/* 3. CONTROLS BAR (SEARCH, FILTERS, ACTIONS) */}
-          <section className="max-w-7xl mx-auto px-4 mb-10 z-20 relative">
+          <section className="max-w-6xl mx-auto px-4 mb-10 z-20 relative">
             <div className="bg-white rounded-sm p-6 shadow-md border border-stone-200">
               
               {/* Row 1: Search & Admin Actions */}
@@ -1728,7 +1728,7 @@ export default function App() {
           </section>
 
           {/* 4. CENTRAL CLASSMATE FLIP-CARDS GRID (4 cột, một dòng gồm 4 ảnh) */}
-          <main className="max-w-7xl mx-auto px-4 relative z-10">
+          <main className="max-w-6xl mx-auto px-4 relative z-10">
             {filteredClassmates.length === 0 ? (
               <motion.div 
                 initial={{ opacity: 0 }}
@@ -1968,7 +1968,7 @@ export default function App() {
 
       {/* ===================== TAB PANEL 2: COLLECTIVES (Tập thể lớp) ===================== */}
       {activeMainTab === "collective" && (
-        <section className="max-w-7xl mx-auto px-4 relative z-10">
+        <section className="max-w-6xl mx-auto px-4 relative z-10">
           <div className="bg-white rounded-sm p-6 shadow-md border border-stone-200 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-normal text-stone-900 tracking-wide flex items-center gap-2">
@@ -2294,7 +2294,7 @@ export default function App() {
 
       {/* ===================== TAB PANEL 3: MEMORIES (Ảnh kỉ niệm) ===================== */}
       {activeMainTab === "memories" && (
-        <section className="max-w-7xl mx-auto px-4 relative z-10">
+        <section className="max-w-6xl mx-auto px-4 relative z-10">
           <div className="bg-white rounded-sm p-6 shadow-md border border-stone-200 mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-normal text-stone-900 tracking-wide flex items-center gap-2">
@@ -2417,7 +2417,7 @@ export default function App() {
 
       {/* ===================== TAB PANEL GUESTBOOK: LƯU BÚT LỚP ===================== */}
       {activeMainTab === "guestbook" && (
-        <section className="max-w-7xl mx-auto px-4 relative z-10">
+        <section className="max-w-6xl mx-auto px-4 relative z-10">
           <div className="bg-white rounded-sm p-6 shadow-md border border-stone-200 mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-normal text-stone-900 tracking-wide flex items-center gap-2">
@@ -2525,7 +2525,7 @@ export default function App() {
 
       {/* ===================== TAB PANEL 4: VIDEO (Thước phim) ===================== */}
       {activeMainTab === "video" && (
-        <section className="max-w-7xl mx-auto px-4 relative z-10">
+        <section className="max-w-6xl mx-auto px-4 relative z-10">
           <div className="bg-white rounded-sm p-6 shadow-md border border-stone-200 mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-normal text-stone-900 tracking-wide flex items-center gap-2">
@@ -2735,37 +2735,19 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Role & Group Select row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
-                      Vai Trò / Chức Danh Lớp <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="VD: Nhạc Sĩ Lớp, Trùm Ăn Quẩy"
-                      value={newRole}
-                      onChange={(e) => setNewRole(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
-                      Chi Tổ Lớp Học
-                    </label>
-                    <select
-                      value={newGroup}
-                      onChange={(e) => setNewGroup(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-stone-250 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
-                    >
-                      <option value="Ban Cán Sự">Ban Cán Sự</option>
-                      <option value="Tổ 1">Tổ 1</option>
-                      <option value="Tổ 2">Tổ 2</option>
-                      <option value="Tổ 3">Tổ 3</option>
-                      <option value="Tổ 4">Tổ 4</option>
-                    </select>
-                  </div>
+                {/* Role Row */}
+                <div>
+                  <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
+                    Vai Trò / Chức Danh Lớp <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Nhạc Sĩ Lớp, Trùm Ăn Quẩy"
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
+                  />
                 </div>
 
                 {/* HEARTFELT WRITING / DIALOUGE (Tâm sự & Lời chúc / Câu chuyện cười) */}
@@ -3770,7 +3752,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* 6. NOSTALGIC CLASS ROOM MEMORIES DECORATION WRAPPER */}
-      <section className="max-w-7xl mx-auto px-4 mt-20">
+      <section className="max-w-6xl mx-auto px-4 mt-20">
         <div className="bg-[#5A5A40] rounded-sm p-6 md:p-8 text-[#F5F5F0] relative overflow-hidden shadow-md border border-[#4A4A30]">
           
           {/* Subtle organic dotted background feel */}
@@ -3837,7 +3819,7 @@ export default function App() {
       </div>
 
       {/* FOOTER */}
-      <footer className="max-w-7xl mx-auto px-4 mt-20 text-center text-xs text-stone-500 font-sans">
+      <footer className="max-w-6xl mx-auto px-4 mt-20 text-center text-xs text-stone-500 font-sans">
         <div className="h-[1px] bg-stone-200 mb-6"></div>
         <p className="flex items-center justify-center gap-1.5 font-light">
           <span>Kỷ Yếu Niên Khóa 12A mến thương • Thiết kế theo phong cách</span>
