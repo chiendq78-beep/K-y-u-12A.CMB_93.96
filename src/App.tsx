@@ -467,7 +467,6 @@ export default function App() {
   // Persistence with Firestore (starts with defaults to avoid flash, then updates via observers)
   const [classmates, setClassmates] = useState<Classmate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isStorageReady, setIsStorageReady] = useState(false);
 
   // Main navigation tabs state: 'portrait' | 'collective' | 'memories' | 'guestbook' | 'video'
   const [activeMainTab, setActiveMainTab] = useState<"portrait" | "collective" | "memories" | "guestbook" | "video">("portrait");
@@ -539,11 +538,13 @@ export default function App() {
       } catch (e) {
         console.warn("Warmup IndexedDB cache failed:", e);
       } finally {
-        setIsStorageReady(true);
+        if (dbMode === "local") {
+          loadAllLocalData();
+        }
       }
     };
     warmupIndexedDB();
-  }, []);
+  }, [dbMode]);
 
   const loadAllLocalData = () => {
     const dbSuffix = databaseId || "default";
@@ -753,7 +754,6 @@ export default function App() {
 
   // Sync with Firestore using real-time observers
   useEffect(() => {
-    if (!isStorageReady) return;
     let active = true;
 
     if (dbMode === "local") {
@@ -1069,7 +1069,7 @@ export default function App() {
       if (unsubAlbums) unsubAlbums();
       if (unsubGuestbook) unsubGuestbook();
     };
-  }, [dbMode, isStorageReady]);
+  }, [dbMode]);
 
   // States
   const [searchQuery, setSearchQuery] = useState("");
