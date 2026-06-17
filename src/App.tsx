@@ -50,7 +50,7 @@ import {
 import { db, handleFirestoreError, OperationType } from "./firebase";
 
 // Reusable image compression function using HTML5 Canvas to keep images small/sharp and prevent Firestore 1MB document size limits
-const compressImage = (file: File, maxWidth = 1800, maxHeight = 1800, quality = 0.88): Promise<string> => {
+const compressImage = (file: File, maxWidth = 1800, maxHeight = 1800, quality = 0.95): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -58,10 +58,18 @@ const compressImage = (file: File, maxWidth = 1800, maxHeight = 1800, quality = 
       const img = new Image();
       img.src = event.target?.result as string;
       img.onload = () => {
-        const canvas = document.createElement("canvas");
         let width = img.width;
         let height = img.height;
 
+        // Bổ sung logic upscaling nhẹ nếu ảnh đầu vào quá nhỏ để giữ độ chi tiết cao
+        const minDim = 800;
+        if (width < minDim && height < minDim) {
+          const scaleFactor = Math.min(minDim / width, minDim / height, 1.5);
+          width = Math.round(width * scaleFactor);
+          height = Math.round(height * scaleFactor);
+        }
+
+        // Đảm bảo tỷ lệ khung hình
         if (width > height) {
           if (width > maxWidth) {
             height = Math.round((height * maxWidth) / width);
@@ -74,6 +82,7 @@ const compressImage = (file: File, maxWidth = 1800, maxHeight = 1800, quality = 
           }
         }
 
+        const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d");
@@ -82,29 +91,127 @@ const compressImage = (file: File, maxWidth = 1800, maxHeight = 1800, quality = 
           return;
         }
 
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Iteratively compress file to get maximum quality while staying under 920KB (to account for Firestore 1MB limits)
-        let currentQuality = quality;
+        // Bật chế độ làm mịn ảnh chất lượng cao để tránh hiện tượng gãy ảnh, vỡ nét răng cưa
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
+        // Thực hiện kỹ thuật giảm kích thước nhiều bước (step-down/mipmapping) để ảnh mượt mà, giữ rõ nét chi tiết khuôn mặt
+        let srcWidth = img.width;
+        let srcHeight = img.height;
+
+        if (srcWidth > width * 2 || srcHeight > height * 2) {
+          let stepCanvas = document.createElement("canvas");
+          stepCanvas.width = srcWidth;
+          stepCanvas.height = srcHeight;
+          let stepCtx = stepCanvas.getContext("2d");
+          if (stepCtx) {
+            stepCtx.drawImage(img, 0, 0);
+            
+            while (srcWidth > width * 2 || srcHeight > height * 2) {
+              const nextWidth = Math.round(srcWidth / 2);
+              const nextHeight = Math.round(srcHeight / 2);
+              if (nextWidth < width || nextHeight < height) break;
+              
+              const tempCanvas = document.createElement("canvas");
+              tempCanvas.width = nextWidth;
+              tempCanvas.height = nextHeight;
+              const tempCtx = tempCanvas.getContext("2d");
+              if (tempCtx) {
+                tempCtx.imageSmoothingEnabled = true;
+                tempCtx.imageSmoothingQuality = "high";
+                tempCtx.drawImage(stepCanvas, 0, 0, srcWidth, srcHeight, 0, 0, nextWidth, nextHeight);
+                stepCanvas = tempCanvas;
+                stepCtx = tempCtx;
+                srcWidth = nextWidth;
+                srcHeight = nextHeight;
+              } else {
+                break;
+              }
+            }
+            ctx.drawImage(stepCanvas, 0, 0, srcWidth, srcHeight, 0, 0, width, height);
+          } else {
+            ctx.drawImage(img, 0, 0, width, height);
+          }
+        } else {
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+
+        // Áp dụng bộ lọc làm sắc nét (unsharp mask / convolution filter) để khuôn mặt và mắt cực kỳ trong, rõ nét
+        try {
+          const imgData = ctx.getImageData(0, 0, width, height);
+          const data = imgData.data;
+          const outputData = new Uint8ClampedArray(data.length);
+          const w = width;
+          const h = height;
+          
+          // Sao chép ban đầu
+          for (let i = 0; i < data.length; i++) {
+            outputData[i] = data[i];
+          }
+          
+          // Kernel sắc nét nhẹ nhàng, giúp lấy lại chi tiết nhỏ
+          const weights = [
+             0, -0.10,  0,
+            -0.10, 1.40, -0.10,
+             0, -0.10,  0
+          ];
+          const side = 3;
+          const halfSide = 1;
+
+          for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+              const sy = y;
+              const sx = x;
+              const dstOff = (y * w + x) * 4;
+              let r = 0, g = 0, b = 0;
+              for (let cy = 0; cy < side; cy++) {
+                for (let cx = 0; cx < side; cx++) {
+                  const scy = sy + cy - halfSide;
+                  const scx = sx + cx - halfSide;
+                  const srcOff = (scy * w + scx) * 4;
+                  const wt = weights[cy * side + cx];
+                  r += data[srcOff] * wt;
+                  g += data[srcOff + 1] * wt;
+                  b += data[srcOff + 2] * wt;
+                }
+              }
+              outputData[dstOff] = Math.min(255, Math.max(0, r));
+              outputData[dstOff + 1] = Math.min(255, Math.max(0, g));
+              outputData[dstOff + 2] = Math.min(255, Math.max(0, b));
+              outputData[dstOff + 3] = data[dstOff + 3];
+            }
+          }
+          ctx.putImageData(new ImageData(outputData, w, h), 0, 0);
+        } catch (e) {
+          console.warn("Sharpening filter skipped (CORS/secure context):", e);
+        }
+
+        // Tối ưu hóa chuỗi Base64 để cận mức 1MB của Firestore
+        let currentQuality = Math.max(quality, 0.95);
         let compressedBase64 = canvas.toDataURL("image/jpeg", currentQuality);
         
-        // Decrease quality gradually if image is extremely complex
         while (compressedBase64.length > 920000 && currentQuality > 0.4) {
-          currentQuality -= 0.08;
+          currentQuality -= 0.05;
           compressedBase64 = canvas.toDataURL("image/jpeg", currentQuality);
         }
         
-        // If still too large, resize scale down and compress
         if (compressedBase64.length > 920000) {
-          let currentScale = 0.8;
+          let currentScale = 0.85;
           while (compressedBase64.length > 920000 && currentScale > 0.3) {
             const tempCanvas = document.createElement("canvas");
             tempCanvas.width = Math.round(width * currentScale);
             tempCanvas.height = Math.round(height * currentScale);
             const tempCtx = tempCanvas.getContext("2d");
             if (tempCtx) {
+              tempCtx.imageSmoothingEnabled = true;
+              tempCtx.imageSmoothingQuality = "high";
               tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
-              compressedBase64 = tempCanvas.toDataURL("image/jpeg", 0.75);
+              compressedBase64 = tempCanvas.toDataURL("image/jpeg", 0.90);
+              let tempQual = 0.90;
+              while (compressedBase64.length > 920000 && tempQual > 0.5) {
+                tempQual -= 0.05;
+                compressedBase64 = tempCanvas.toDataURL("image/jpeg", tempQual);
+              }
             }
             currentScale -= 0.15;
           }
