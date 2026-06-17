@@ -1385,8 +1385,8 @@ export default function App() {
         return;
       }
       try {
-        // High quality compression for large collective landscape photo (1920x1920, quality 0.9)
-        const compressed = await compressImage(file, 1920, 1920, 0.9);
+        // High resolution limit for collective photos (3200x3200, quality 0.95) to preserve small facial details perfectly
+        const compressed = await compressImage(file, 3200, 3200, 0.95);
         setNewColUpload(compressed);
       } catch (err) {
         console.error("Lỗi tự động nén ảnh tập thể lớp:", err);
@@ -1407,8 +1407,8 @@ export default function App() {
         return;
       }
       try {
-        // High quality compression for memories/artifacts and notes photo (1600x1600, quality 0.9)
-        const compressed = await compressImage(file, 1600, 1600, 0.9);
+        // High quality scale for memories/artifacts (2400x2400, quality 0.95)
+        const compressed = await compressImage(file, 2400, 2400, 0.95);
         setNewMemUpload(compressed);
       } catch (err) {
         console.error("Lỗi tự động nén ảnh hiện vật kỉ niệm:", err);
