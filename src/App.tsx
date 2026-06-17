@@ -30,7 +30,10 @@ import {
   ChevronRight,
   Download,
   FolderPlus,
-  Folder
+  Folder,
+  Upload,
+  Database,
+  RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { DEFAULT_CLASSMATES, GROUPS } from "./data";
@@ -47,7 +50,7 @@ import {
   deleteDoc, 
   onSnapshot 
 } from "firebase/firestore";
-import { db, handleFirestoreError, OperationType } from "./firebase";
+import { db, handleFirestoreError, OperationType, databaseId } from "./firebase";
 
 // Reusable image compression function using HTML5 Canvas to keep images small/sharp and prevent Firestore 1MB document size limits
 const compressImage = (file: File, maxWidth = 1800, maxHeight = 1800, quality = 0.95): Promise<string> => {
@@ -259,19 +262,200 @@ const isoToVietnameseDate = (str: string): string => {
 
 
 // Safe wrapper around localStorage setItem to catch any QuotaExceededError or security restrictions
-const safeSaveToLocalStorage = (key: string, data: any) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (error) {
-    console.error(`Error saving to localStorage [${key}]:`, error);
-    if (
-      error instanceof DOMException &&
-      (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")
-    ) {
-      alert("⚠️ Dung lượng bộ nhớ trình duyệt đã bị đầy (Giới hạn localStorage 5MB). Một số ảnh kỉ niệm quá lớn, bạn vui lòng xóa bớt ảnh cũ để lưu trữ được bình thường nhé!");
+class IndexedDBStorage {
+  private dbName = "ky-yeu-sqlite-replica";
+  private storeName = "kv-store";
+  private dbPromise: Promise<IDBDatabase> | null = null;
+
+  private getDB(): Promise<IDBDatabase> {
+    if (this.dbPromise) return this.dbPromise;
+
+    this.dbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return this.dbPromise;
+  }
+
+  async getItem<T>(key: string): Promise<T | null> {
+    try {
+      const db = await this.getDB();
+      return new Promise<T | null>((resolve, reject) => {
+        const transaction = db.transaction(this.storeName, "readonly");
+        const store = transaction.objectStore(this.storeName);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result !== undefined ? req.result : null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("IndexedDB getItem error:", e);
+      return null;
     }
   }
+
+  async setItem<T>(key: string, value: T): Promise<void> {
+    try {
+      const db = await this.getDB();
+      return new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(this.storeName, "readwrite");
+        const store = transaction.objectStore(this.storeName);
+        const req = store.put(value, key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("IndexedDB setItem error:", e);
+    }
+  }
+
+  async removeItem(key: string): Promise<void> {
+    try {
+      const db = await this.getDB();
+      return new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(this.storeName, "readwrite");
+        const store = transaction.objectStore(this.storeName);
+        const req = store.delete(key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn("IndexedDB removeItem error:", e);
+    }
+  }
+}
+
+const idbStorage = new IndexedDBStorage();
+const dbReplicaMemoryStore: Record<string, string> = {};
+
+const getLocalData = (key: string): string | null => {
+  if (dbReplicaMemoryStore[key] !== undefined) {
+    return dbReplicaMemoryStore[key];
+  }
+  return localStorage.getItem(key);
 };
+
+const safeSaveToLocalStorage = (key: string, data: any) => {
+  const jsonStr = JSON.stringify(data);
+  dbReplicaMemoryStore[key] = jsonStr;
+
+  // Async replication to unlimited IndexedDB storage
+  idbStorage.setItem(key, data).catch((err) => {
+    console.warn(`IndexedDB save failed for ${key}:`, err);
+  });
+
+  // Attempt sync replication to standard localStorage
+  try {
+    localStorage.setItem(key, jsonStr);
+  } catch (error) {
+    console.warn(`localStorage exceeded storage limit for [${key}], fallbacked successfully to Unlimited IndexedDB:`, error);
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {}
+  }
+};
+
+const DEFAULT_ALBUMS = [
+  { id: "alb-1", name: "🏫 Lớp học thân quen", description: "Kỷ niệm góc sân trường và phòng học mái ngói thân thương." },
+  { id: "alb-2", name: "⚽ Ngoại khóa & Dã ngoại", description: "Các chuyến đi phượt, giao lưu bóng đá và văn nghệ lớp." },
+  { id: "alb-3", name: "🤪 Hậu trường tinh nghịch", description: "Những khoảnh khắc dìm hàng nhắng nhít khó quên." }
+];
+
+const DEFAULT_COLL_PHOTOS = [
+  {
+    id: "col-1",
+    title: "Tập Thể Lớp Dưới Sân Trường Cổ Kính (1995)",
+    description: "Tấm ảnh chụp chung trước thềm kỳ thi tốt nghiệp niên khóa 93-96. Tà áo trắng bay dạt dào dưới tán bàng xanh.",
+    url: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=1200",
+    date: "Tháng 05, 1995",
+    albumId: "alb-1"
+  },
+  {
+    id: "col-2",
+    title: "Chuyến Dã Ngoại Cọp Sơn Tây (1994)",
+    description: "Bữa trưa hối hả ăn xôi cuộn, ngã lăn ra bãi cỏ chọc ghẹo nhau đến khản tiếng dưới ánh nắng đầu thu mát rượi.",
+    url: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=1200",
+    date: "Mùa thu, 1994",
+    albumId: "alb-2"
+  },
+  {
+    id: "col-3",
+    title: "Ngày Hội Giao Lưu Bóng Đá 12A.CMB (1996)",
+    description: "Hò hét khản cả cổ bên lề sân bóng đất đỏ. Hôm ấy lớp mình vắng vài bạn, nhưng tiếng hô vang thì rộn rã tuyệt vời.",
+    url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1200",
+    date: "Tháng 03, 1996",
+    albumId: "alb-2"
+  }
+];
+
+const DEFAULT_MEM_PHOTOS = [
+  {
+    id: "mem-1",
+    title: "Cuốn Sổ Sứ Điệp & Lưu Bút",
+    description: "Dòng mực tím nắn nót, nét chữ thanh nét đậm, trao nhau lời hứa sẽ mãi nhớ về một thuở áo trắng mộc mơ.",
+    url: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=600"
+  },
+  {
+    id: "mem-2",
+    title: "Băng Cassette Nhạc Trịnh & Thơ Ca học trò",
+    description: "Những chiều mất điện cả đám túm tụm quanh chiếc cassette chạy pin, nghe bản tình ca bất hủ dắt ta tìm lại những ngày thơ bé.",
+    url: "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600"
+  },
+  {
+    id: "mem-3",
+    title: "Giấy Khen Học Kỳ & Hoa Phượng Khô",
+    description: "Những cánh phượng hồng rực rỡ, ép cẩn thận phẳng phiu ở trang vở địa lý học trò, nay đã úa màu nhưng kỷ niệm vẫn vẹn nguyên.",
+    url: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80&w=600"
+  },
+  {
+    id: "mem-4",
+    title: "Dàn Xe Đạp Phượng Hoàng Sân Trường",
+    description: "Dưới bóng xà cừ rợp lá, tiếng đùm xe chạm đều đinh đang ngân vang mỗi chiều tan học gió thổi tóc bay bồng bềnh.",
+    url: "https://images.unsplash.com/photo-1519003722824-194d4455a60c?auto=format&fit=crop&q=80&w=600"
+  }
+];
+
+const DEFAULT_MEM_VIDEOS = [
+  {
+    id: "vid-1",
+    title: "Thanh Xuân Lớp Học 12A.CMB (Giai điệu Mong Ước Kỷ Niệm Xưa)",
+    description: "Dòng cảm xúc chứa chan thời áo trắng bay lượn, những bóng bàng, cánh phượng đỏ hồng, hành lang đầy gió năm xưa.",
+    url: "https://www.youtube.com/embed/zWeREb-pLrs"
+  },
+  {
+    id: "vid-2",
+    title: "Phim Tư Liệu Bế Giảng Phượng Vĩ Ngày Ấy (VHS Rip)",
+    description: "Thước phim màu mờ thô cũ ghi lại khoảng khắc rưng rưng ghi lưu bút lên lưng áo bạn học thân quý ngày bế giảng 1996.",
+    url: "https://www.youtube.com/embed/dQw4w9WgXcQ"
+  }
+];
+
+const DEFAULT_GUESTBOOK = [
+  {
+    id: "gb-1",
+    sender: "Đào Duy Anh",
+    title: "Gửi tập thể 12A thân thương!",
+    content: "Thời gian trôi nhanh quá các bạn ơi, mới chớp mắt một cái mà đã vèo 30 năm rồi. Mình vẫn nhớ mãi những trưa nắng đạp xe vòng quanh sân trường cũ, cùng chia nhau ổ bánh mì kẹp hay nắn nót viết từng dòng lưu bút trên vạt áo trắng ngày bế giảng năm 1996. Mong rằng dù ở bất cứ nơi đâu, các bạn của tớ vẫn luôn giữ mãi nụ cười trong trẻo hồn nhiên của tuổi 18!",
+    date: "Ngày 15 tháng 06, 2026",
+    bgStyle: "yellow",
+    createdAt: new Date(Date.now() - 86400000).toISOString()
+  },
+  {
+    id: "gb-2",
+    sender: "Hoàng Thùy Linh",
+    title: "Lời nhắn gửi từ cô bạn bàn cuối bàn 4",
+    content: "Chào cả lớp mình! Lướt nhìn những tấm ảnh chụp chung ngày xưa mà tim mình cứ bồi hồi rưng rưng khôn tả. Nhớ bạn lớp trưởng gương mẫu hay nhắc nhở lớp giữ trật tự, nhớ cả nhóm tinh nghịch trùm quậy hay bẻ phượng rào trường, trốn học đi xem bóng đá... Khoảng thời gian niên khóa 1993 - 1996 ấy thực sự là mảnh ký ức rực rỡ và trân quý nhất đời tớ. Chúc cả lớp mình mãi gắn bó bên nhau nồng ấm!",
+    date: "Ngày 16 tháng 06, 2026",
+    bgStyle: "pink",
+    createdAt: new Date().toISOString()
+  }
+];
 
 export default function App() {
   // Admin Login State
@@ -283,6 +467,7 @@ export default function App() {
   // Persistence with Firestore (starts with defaults to avoid flash, then updates via observers)
   const [classmates, setClassmates] = useState<Classmate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStorageReady, setIsStorageReady] = useState(false);
 
   // Main navigation tabs state: 'portrait' | 'collective' | 'memories' | 'guestbook' | 'video'
   const [activeMainTab, setActiveMainTab] = useState<"portrait" | "collective" | "memories" | "guestbook" | "video">("portrait");
@@ -323,6 +508,193 @@ export default function App() {
 
   const [memoryVideos, setMemoryVideos] = useState<{ id: string; title: string; description: string; url: string }[]>([]);
 
+  // Dual-mode Storage State: Google Cloud Firestore vs Local Browser Storage
+  const [dbMode, setDbMode] = useState<"cloud" | "local">(() => {
+    const saved = localStorage.getItem("ky-yeu-db-mode");
+    if (saved === "local") return "local";
+    return "cloud";
+  });
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+
+  // Warm up memory cache from IndexedDB offline storage on mount
+  useEffect(() => {
+    const warmupIndexedDB = async () => {
+      try {
+        const dbSuffix = databaseId || "default";
+        const keys = [
+          `local-db-classmates-${dbSuffix}`,
+          `local-db-collectiveAlbums-${dbSuffix}`,
+          `local-db-collectivePhotos-${dbSuffix}`,
+          `local-db-memoryPhotos-${dbSuffix}`,
+          `local-db-memoryVideos-${dbSuffix}`,
+          `local-db-guestbook-${dbSuffix}`
+        ];
+        for (const key of keys) {
+          const stored = await idbStorage.getItem<any>(key);
+          if (stored !== null) {
+            dbReplicaMemoryStore[key] = JSON.stringify(stored);
+          }
+        }
+      } catch (e) {
+        console.warn("Warmup IndexedDB cache failed:", e);
+      } finally {
+        setIsStorageReady(true);
+      }
+    };
+    warmupIndexedDB();
+  }, []);
+
+  const loadAllLocalData = () => {
+    const dbSuffix = databaseId || "default";
+    const localClassmates = getLocalData(`local-db-classmates-${dbSuffix}`);
+    const localAlbums = getLocalData(`local-db-collectiveAlbums-${dbSuffix}`);
+    const localColPhotos = getLocalData(`local-db-collectivePhotos-${dbSuffix}`);
+    const localMemPhotos = getLocalData(`local-db-memoryPhotos-${dbSuffix}`);
+    const localMemVideos = getLocalData(`local-db-memoryVideos-${dbSuffix}`);
+    const localGuestbook = getLocalData(`local-db-guestbook-${dbSuffix}`);
+
+    if (!localClassmates) {
+      safeSaveToLocalStorage(`local-db-classmates-${dbSuffix}`, DEFAULT_CLASSMATES);
+      setClassmates(DEFAULT_CLASSMATES);
+    } else {
+      setClassmates(JSON.parse(localClassmates));
+    }
+
+    if (!localAlbums) {
+      safeSaveToLocalStorage(`local-db-collectiveAlbums-${dbSuffix}`, DEFAULT_ALBUMS);
+      setCollectiveAlbums(DEFAULT_ALBUMS);
+    } else {
+      setCollectiveAlbums(JSON.parse(localAlbums));
+    }
+
+    if (!localColPhotos) {
+      safeSaveToLocalStorage(`local-db-collectivePhotos-${dbSuffix}`, DEFAULT_COLL_PHOTOS);
+      setCollectivePhotos(DEFAULT_COLL_PHOTOS);
+    } else {
+      setCollectivePhotos(JSON.parse(localColPhotos));
+    }
+
+    if (!localMemPhotos) {
+      safeSaveToLocalStorage(`local-db-memoryPhotos-${dbSuffix}`, DEFAULT_MEM_PHOTOS);
+      setMemoryPhotos(DEFAULT_MEM_PHOTOS);
+    } else {
+      setMemoryPhotos(JSON.parse(localMemPhotos));
+    }
+
+    if (!localMemVideos) {
+      safeSaveToLocalStorage(`local-db-memoryVideos-${dbSuffix}`, DEFAULT_MEM_VIDEOS);
+      setMemoryVideos(DEFAULT_MEM_VIDEOS);
+    } else {
+      setMemoryVideos(JSON.parse(localMemVideos));
+    }
+
+    if (!localGuestbook) {
+      safeSaveToLocalStorage(`local-db-guestbook-${dbSuffix}`, DEFAULT_GUESTBOOK);
+      setGuestbookEntries(DEFAULT_GUESTBOOK);
+    } else {
+      const parsed = JSON.parse(localGuestbook);
+      parsed.sort((a: any, b: any) => {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tB - tA;
+      });
+      setGuestbookEntries(parsed);
+    }
+  };
+
+  const saveItem = async (collectionName: string, id: string, itemData: any) => {
+    const dbSuffix = databaseId || "default";
+    const localKey = `local-db-${collectionName}-${dbSuffix}`;
+    const rawLocal = getLocalData(localKey);
+    let list = rawLocal ? JSON.parse(rawLocal) : [];
+    
+    const index = list.findIndex((x: any) => x.id === id);
+    if (index >= 0) {
+      list[index] = { ...list[index], ...itemData, id };
+    } else {
+      list.push({ ...itemData, id });
+    }
+    safeSaveToLocalStorage(localKey, list);
+
+    if (dbMode === "local") {
+      if (collectionName === "classmates") {
+        const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
+        setClassmates(sorted);
+      } else if (collectionName === "collectiveAlbums") {
+        setCollectiveAlbums(list);
+      } else if (collectionName === "collectivePhotos") {
+        setCollectivePhotos(list);
+      } else if (collectionName === "memoryPhotos") {
+        setMemoryPhotos(list);
+      } else if (collectionName === "memoryVideos") {
+        setMemoryVideos(list);
+      } else if (collectionName === "guestbook") {
+        const sorted = [...list].sort((a, b) => {
+          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return tB - tA;
+        });
+        setGuestbookEntries(sorted);
+      }
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, collectionName, id), itemData, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${id}`);
+      if (err instanceof Error && (err.message.includes("quota") || err.message.includes("Quota") || err.message.includes("resource-exhausted") || err.message.includes("LIMIT_EXCEEDED") || err.message.includes("exceeded"))) {
+        setIsQuotaExceeded(true);
+        setDbMode("local");
+        localStorage.setItem("ky-yeu-db-mode", "local");
+        loadAllLocalData();
+      } else {
+        throw err;
+      }
+    }
+  };
+
+  const deleteItem = async (collectionName: string, id: string) => {
+    const dbSuffix = databaseId || "default";
+    const localKey = `local-db-${collectionName}-${dbSuffix}`;
+    const rawLocal = getLocalData(localKey);
+    let list = rawLocal ? JSON.parse(rawLocal) : [];
+    list = list.filter((x: any) => x.id !== id);
+    safeSaveToLocalStorage(localKey, list);
+
+    if (dbMode === "local") {
+      if (collectionName === "classmates") {
+        setClassmates(list);
+      } else if (collectionName === "collectiveAlbums") {
+        setCollectiveAlbums(list);
+      } else if (collectionName === "collectivePhotos") {
+        setCollectivePhotos(list);
+      } else if (collectionName === "memoryPhotos") {
+        setMemoryPhotos(list);
+      } else if (collectionName === "memoryVideos") {
+        setMemoryVideos(list);
+      } else if (collectionName === "guestbook") {
+        setGuestbookEntries(list);
+      }
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, collectionName, id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
+      if (err instanceof Error && (err.message.includes("quota") || err.message.includes("Quota") || err.message.includes("resource-exhausted") || err.message.includes("LIMIT_EXCEEDED") || err.message.includes("exceeded"))) {
+        setIsQuotaExceeded(true);
+        setDbMode("local");
+        localStorage.setItem("ky-yeu-db-mode", "local");
+        loadAllLocalData();
+      } else {
+        throw err;
+      }
+    }
+  };
+
   // Seeding helper to initialize Firestore when database is completely empty
   const seedDatabase = async () => {
     try {
@@ -337,12 +709,7 @@ export default function App() {
       const albumCol = collection(db, "collectiveAlbums");
       const albumSnap = await getDocs(albumCol);
       if (albumSnap.empty) {
-        const defaultAlbums = [
-          { id: "alb-1", name: "🏫 Lớp học thân quen", description: "Kỷ niệm góc sân trường và phòng học mái ngói thân thương." },
-          { id: "alb-2", name: "⚽ Ngoại khóa & Dã ngoại", description: "Các chuyến đi phượt, giao lưu bóng đá và văn nghệ lớp." },
-          { id: "alb-3", name: "🤪 Hậu trường tinh nghịch", description: "Những khoảnh khắc dìm hàng nhắng nhít khó quên." }
-        ];
-        for (const alb of defaultAlbums) {
+        for (const alb of DEFAULT_ALBUMS) {
           await setDoc(doc(db, "collectiveAlbums", alb.id), alb);
         }
       }
@@ -350,33 +717,7 @@ export default function App() {
       const colCol = collection(db, "collectivePhotos");
       const colSnap = await getDocs(colCol);
       if (colSnap.empty) {
-        const defaultCol = [
-          {
-            id: "col-1",
-            title: "Tập Thể Lớp Dưới Sân Trường Cổ Kính (1995)",
-            description: "Tấm ảnh chụp chung trước thềm kỳ thi tốt nghiệp niên khóa 93-96. Tà áo trắng bay dạt dào dưới tán bàng xanh.",
-            url: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=1200",
-            date: "Tháng 05, 1995",
-            albumId: "alb-1"
-          },
-          {
-            id: "col-2",
-            title: "Chuyến Dã Ngoại Cọp Sơn Tây (1994)",
-            description: "Bữa trưa hối hả ăn xôi cuộn, ngã lăn ra bãi cỏ chọc ghẹo nhau đến khản tiếng dưới ánh nắng đầu thu mát rượi.",
-            url: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=1200",
-            date: "Mùa thu, 1994",
-            albumId: "alb-2"
-          },
-          {
-            id: "col-3",
-            title: "Ngày Hội Giao Lưu Bóng Đá 12A.CMB (1996)",
-            description: "Hò hét khản cả cổ bên lề sân bóng đất đỏ. Hôm ấy lớp mình vắng vài bạn, nhưng tiếng hô vang thì rộn rã tuyệt vời.",
-            url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1200",
-            date: "Tháng 03, 1996",
-            albumId: "alb-2"
-          }
-        ];
-        for (const item of defaultCol) {
+        for (const item of DEFAULT_COLL_PHOTOS) {
           await setDoc(doc(db, "collectivePhotos", item.id), item);
         }
       }
@@ -384,33 +725,7 @@ export default function App() {
       const memCol = collection(db, "memoryPhotos");
       const memSnap = await getDocs(memCol);
       if (memSnap.empty) {
-        const defaultMem = [
-          {
-            id: "mem-1",
-            title: "Cuốn Sổ Sứ Điệp & Lưu Bút",
-            description: "Dòng mực tím nắn nót, nét chữ thanh nét đậm, trao nhau lời hứa sẽ mãi nhớ về một thuở áo trắng mộc mơ.",
-            url: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=600"
-          },
-          {
-            id: "mem-2",
-            title: "Băng Cassette Nhạc Trịnh & Thơ Ca học trò",
-            description: "Những chiều mất điện cả đám túm tụm quanh chiếc cassette chạy pin, nghe bản tình ca bất hủ dắt ta tìm lại những ngày thơ bé.",
-            url: "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600"
-          },
-          {
-            id: "mem-3",
-            title: "Giấy Khen Học Kỳ & Hoa Phượng Khô",
-            description: "Những cánh phượng hồng rực rỡ, ép cẩn thận phẳng phiu ở trang vở địa lý học trò, nay đã úa màu nhưng kỷ niệm vẫn vẹn nguyên.",
-            url: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80&w=600"
-          },
-          {
-            id: "mem-4",
-            title: "Dàn Xe Đạp Phượng Hoàng Sân Trường",
-            description: "Dưới bóng xà cừ rợp lá, tiếng đùm xe chạm đều đinh đang ngân vang mỗi chiều tan học gió thổi tóc bay bồng bềnh.",
-            url: "https://images.unsplash.com/photo-1519003722824-194d4455a60c?auto=format&fit=crop&q=80&w=600"
-          }
-        ];
-        for (const item of defaultMem) {
+        for (const item of DEFAULT_MEM_PHOTOS) {
           await setDoc(doc(db, "memoryPhotos", item.id), item);
         }
       }
@@ -418,21 +733,7 @@ export default function App() {
       const vidCol = collection(db, "memoryVideos");
       const vidSnap = await getDocs(vidCol);
       if (vidSnap.empty) {
-        const defaultVid = [
-          {
-            id: "vid-1",
-            title: "Thanh Xuân Lớp Học 12A.CMB (Giai điệu Mong Ước Kỷ Niệm Xưa)",
-            description: "Dòng cảm xúc chứa chan thời áo trắng bay lượn, những bóng bàng, cánh phượng đỏ hồng, hành lang đầy gió năm xưa.",
-            url: "https://www.youtube.com/embed/zWeREb-pLrs"
-          },
-          {
-            id: "vid-2",
-            title: "Phim Tư Liệu Bế Giảng Phượng Vĩ Ngày Ấy (VHS Rip)",
-            description: "Thước phim màu mờ thô cũ ghi lại khoảng khắc rưng rưng ghi lưu bút lên lưng áo bạn học thân quý ngày bế giảng 1996.",
-            url: "https://www.youtube.com/embed/dQw4w9WgXcQ"
-          }
-        ];
-        for (const item of defaultVid) {
+        for (const item of DEFAULT_MEM_VIDEOS) {
           await setDoc(doc(db, "memoryVideos", item.id), item);
         }
       }
@@ -440,38 +741,27 @@ export default function App() {
       const guestbookCol = collection(db, "guestbook");
       const guestbookSnap = await getDocs(guestbookCol);
       if (guestbookSnap.empty) {
-        const defaultGuestbook = [
-          {
-            id: "gb-1",
-            sender: "Đào Duy Anh",
-            title: "Gửi tập thể 12A thân thương!",
-            content: "Thời gian trôi nhanh quá các bạn ơi, mới chớp mắt một cái mà đã vèo 30 năm rồi. Mình vẫn nhớ mãi những trưa nắng đạp xe vòng quanh sân trường cũ, cùng chia nhau ổ bánh mì kẹp hay nắn nót viết từng dòng lưu bút trên vạt áo trắng ngày bế giảng năm 1996. Mong rằng dù ở bất cứ nơi đâu, các bạn của tớ vẫn luôn giữ mãi nụ cười trong trẻo hồn nhiên của tuổi 18!",
-            date: "Ngày 15 tháng 06, 2026",
-            bgStyle: "yellow",
-            createdAt: new Date(Date.now() - 86400000).toISOString()
-          },
-          {
-            id: "gb-2",
-            sender: "Hoàng Thùy Linh",
-            title: "Lời nhắn gửi từ cô bạn bàn cuối bàn 4",
-            content: "Chào cả lớp mình! Lướt nhìn những tấm ảnh chụp chung ngày xưa mà tim mình cứ bồi hồi rưng rưng khôn tả. Nhớ bạn lớp trưởng gương mẫu hay nhắc nhở lớp giữ trật tự, nhớ cả nhóm tinh nghịch trùm quậy hay bẻ phượng rào trường, trốn học đi xem bóng đá... Khoảng thời gian niên khóa 1993 - 1996 ấy thực sự là mảnh ký ức rực rỡ và trân quý nhất đời tớ. Chúc cả lớp mình mãi gắn bó bên nhau nồng ấm!",
-            date: "Ngày 16 tháng 06, 2026",
-            bgStyle: "pink",
-            createdAt: new Date().toISOString()
-          }
-        ];
-        for (const item of defaultGuestbook) {
+        for (const item of DEFAULT_GUESTBOOK) {
           await setDoc(doc(db, "guestbook", item.id), item);
         }
       }
     } catch (error) {
       console.error("Lỗi khởi tạo dữ liệu mẫu:", error);
+      throw error;
     }
   };
 
   // Sync with Firestore using real-time observers
   useEffect(() => {
+    if (!isStorageReady) return;
     let active = true;
+
+    if (dbMode === "local") {
+      loadAllLocalData();
+      setIsLoading(false);
+      return;
+    }
+
     let unsubClassmates: (() => void) | null = null;
     let unsubCol: (() => void) | null = null;
     let unsubMem: (() => void) | null = null;
@@ -480,12 +770,27 @@ export default function App() {
     let unsubGuestbook: (() => void) | null = null;
     let safetyTimeout: any = null;
 
+    const handleQuotaError = (error: unknown) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("quota") || msg.includes("Quota") || msg.includes("resource-exhausted") || msg.includes("LIMIT_EXCEEDED") || msg.includes("exceeded")) {
+        setIsQuotaExceeded(true);
+        setDbMode("local");
+        localStorage.setItem("ky-yeu-db-mode", "local");
+      }
+    };
+
     const initDataAndListen = async () => {
       // Direct optimization check: if database has already been seeded on this client, do NOT block on sequential checks!
-      const isSeeded = localStorage.getItem("ky-yeu-db-seeded") === "true";
+      const dbSuffix = databaseId || "default";
+      const seedKey = `ky-yeu-db-seeded-${dbSuffix}`;
+      const isSeeded = localStorage.getItem(seedKey) === "true";
       if (!isSeeded) {
-        await seedDatabase();
-        localStorage.setItem("ky-yeu-db-seeded", "true");
+        try {
+          await seedDatabase();
+          localStorage.setItem(seedKey, "true");
+        } catch (err) {
+          handleQuotaError(err);
+        }
       }
       if (!active) return;
 
@@ -505,12 +810,14 @@ export default function App() {
         }
       };
 
-      // Set up a safety loading release after 2.5s maximum to avoid freezing on slow connections
+      // Set up a safety loading release after 3.5s maximum to avoid freezing on slow connections
       safetyTimeout = setTimeout(() => {
         if (active) {
           setIsLoading(false);
         }
-      }, 2500);
+      }, 3500);
+
+      const dbSuffix2 = databaseId || "default";
 
       unsubClassmates = onSnapshot(collection(db, "classmates"), (snapshot) => {
         if (!active) return;
@@ -518,13 +825,35 @@ export default function App() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() } as Classmate);
         });
-        // Sort classmates by name
-        list.sort((a, b) => a.name.localeCompare(b.name));
-        setClassmates(list);
+        
+        if (list.length > 0) {
+          list.sort((a, b) => a.name.localeCompare(b.name));
+          setClassmates(list);
+          safeSaveToLocalStorage(`local-db-classmates-${dbSuffix2}`, list);
+        } else {
+          // If Firestore is empty/reset, load local or default fallback so screen doesn't clear!
+          const local = getLocalData(`local-db-classmates-${dbSuffix2}`);
+          if (local) {
+            setClassmates(JSON.parse(local));
+          } else {
+            setClassmates(DEFAULT_CLASSMATES);
+          }
+        }
+
         classmatesLoaded = true;
         checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "classmates");
+        handleQuotaError(error);
+        
+        // Local fallback on error
+        const local = getLocalData(`local-db-classmates-${dbSuffix2}`);
+        if (local) {
+          setClassmates(JSON.parse(local));
+        } else {
+          setClassmates(DEFAULT_CLASSMATES);
+        }
+
         classmatesLoaded = true;
         checkAllLoaded();
       });
@@ -535,11 +864,32 @@ export default function App() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() });
         });
-        setCollectivePhotos(list);
+        
+        if (list.length > 0) {
+          setCollectivePhotos(list);
+          safeSaveToLocalStorage(`local-db-collectivePhotos-${dbSuffix2}`, list);
+        } else {
+          const local = getLocalData(`local-db-collectivePhotos-${dbSuffix2}`);
+          if (local) {
+            setCollectivePhotos(JSON.parse(local));
+          } else {
+            setCollectivePhotos(DEFAULT_COLL_PHOTOS);
+          }
+        }
+
         colLoaded = true;
         checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "collectivePhotos");
+        handleQuotaError(error);
+
+        const local = getLocalData(`local-db-collectivePhotos-${dbSuffix2}`);
+        if (local) {
+          setCollectivePhotos(JSON.parse(local));
+        } else {
+          setCollectivePhotos(DEFAULT_COLL_PHOTOS);
+        }
+
         colLoaded = true;
         checkAllLoaded();
       });
@@ -550,11 +900,32 @@ export default function App() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() });
         });
-        setMemoryPhotos(list);
+        
+        if (list.length > 0) {
+          setMemoryPhotos(list);
+          safeSaveToLocalStorage(`local-db-memoryPhotos-${dbSuffix2}`, list);
+        } else {
+          const local = getLocalData(`local-db-memoryPhotos-${dbSuffix2}`);
+          if (local) {
+            setMemoryPhotos(JSON.parse(local));
+          } else {
+            setMemoryPhotos(DEFAULT_MEM_PHOTOS);
+          }
+        }
+
         memLoaded = true;
         checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "memoryPhotos");
+        handleQuotaError(error);
+
+        const local = getLocalData(`local-db-memoryPhotos-${dbSuffix2}`);
+        if (local) {
+          setMemoryPhotos(JSON.parse(local));
+        } else {
+          setMemoryPhotos(DEFAULT_MEM_PHOTOS);
+        }
+
         memLoaded = true;
         checkAllLoaded();
       });
@@ -565,11 +936,32 @@ export default function App() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() });
         });
-        setMemoryVideos(list);
+        
+        if (list.length > 0) {
+          setMemoryVideos(list);
+          safeSaveToLocalStorage(`local-db-memoryVideos-${dbSuffix2}`, list);
+        } else {
+          const local = getLocalData(`local-db-memoryVideos-${dbSuffix2}`);
+          if (local) {
+            setMemoryVideos(JSON.parse(local));
+          } else {
+            setMemoryVideos(DEFAULT_MEM_VIDEOS);
+          }
+        }
+
         vidLoaded = true;
         checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "memoryVideos");
+        handleQuotaError(error);
+
+        const local = getLocalData(`local-db-memoryVideos-${dbSuffix2}`);
+        if (local) {
+          setMemoryVideos(JSON.parse(local));
+        } else {
+          setMemoryVideos(DEFAULT_MEM_VIDEOS);
+        }
+
         vidLoaded = true;
         checkAllLoaded();
       });
@@ -580,11 +972,32 @@ export default function App() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() } as CollectiveAlbum);
         });
-        setCollectiveAlbums(list);
+        
+        if (list.length > 0) {
+          setCollectiveAlbums(list);
+          safeSaveToLocalStorage(`local-db-collectiveAlbums-${dbSuffix2}`, list);
+        } else {
+          const local = getLocalData(`local-db-collectiveAlbums-${dbSuffix2}`);
+          if (local) {
+            setCollectiveAlbums(JSON.parse(local));
+          } else {
+            setCollectiveAlbums(DEFAULT_ALBUMS);
+          }
+        }
+
         albumsLoaded = true;
         checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "collectiveAlbums");
+        handleQuotaError(error);
+
+        const local = getLocalData(`local-db-collectiveAlbums-${dbSuffix2}`);
+        if (local) {
+          setCollectiveAlbums(JSON.parse(local));
+        } else {
+          setCollectiveAlbums(DEFAULT_ALBUMS);
+        }
+
         albumsLoaded = true;
         checkAllLoaded();
       });
@@ -595,17 +1008,50 @@ export default function App() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() });
         });
-        // Sort guestbook entries: newest first
-        list.sort((a, b) => {
-          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return tB - tA;
-        });
-        setGuestbookEntries(list);
+        
+        if (list.length > 0) {
+          // Sort guestbook entries: newest first
+          list.sort((a, b) => {
+            const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return tB - tA;
+          });
+          setGuestbookEntries(list);
+          safeSaveToLocalStorage(`local-db-guestbook-${dbSuffix2}`, list);
+        } else {
+          const local = getLocalData(`local-db-guestbook-${dbSuffix2}`);
+          if (local) {
+            const parsed = JSON.parse(local);
+            parsed.sort((a: any, b: any) => {
+              const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              return tB - tA;
+            });
+            setGuestbookEntries(parsed);
+          } else {
+            setGuestbookEntries(DEFAULT_GUESTBOOK);
+          }
+        }
+
         guestbookLoaded = true;
         checkAllLoaded();
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, "guestbook");
+        handleQuotaError(error);
+
+        const local = getLocalData(`local-db-guestbook-${dbSuffix2}`);
+        if (local) {
+          const parsed = JSON.parse(local);
+          parsed.sort((a: any, b: any) => {
+            const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return tB - tA;
+          });
+          setGuestbookEntries(parsed);
+        } else {
+          setGuestbookEntries(DEFAULT_GUESTBOOK);
+        }
+
         guestbookLoaded = true;
         checkAllLoaded();
       });
@@ -623,7 +1069,7 @@ export default function App() {
       if (unsubAlbums) unsubAlbums();
       if (unsubGuestbook) unsubGuestbook();
     };
-  }, []);
+  }, [dbMode, isStorageReady]);
 
   // States
   const [searchQuery, setSearchQuery] = useState("");
@@ -865,13 +1311,13 @@ export default function App() {
     const albumId = editingAlbumId || "alb-" + Date.now().toString();
     try {
       if (editingAlbumId) {
-        await setDoc(doc(db, "collectiveAlbums", albumId), {
+        await saveItem("collectiveAlbums", albumId, {
           id: albumId,
           name: newAlbumName.trim(),
           description: newAlbumDesc.trim(),
-        }, { merge: true });
+        });
       } else {
-        await setDoc(doc(db, "collectiveAlbums", albumId), {
+        await saveItem("collectiveAlbums", albumId, {
           id: albumId,
           name: newAlbumName.trim(),
           description: newAlbumDesc.trim(),
@@ -929,16 +1375,16 @@ export default function App() {
     const entryId = editingGuestbookId || "gb-" + Date.now().toString();
     try {
       if (editingGuestbookId) {
-        await setDoc(doc(db, "guestbook", entryId), {
+        await saveItem("guestbook", entryId, {
           id: entryId,
           sender: newGuestbookSender.trim(),
           title: newGuestbookTitle.trim(),
           content: newGuestbookContent.trim(),
           date: newGuestbookDate.trim() || new Date().toLocaleDateString("vi-VN"),
           bgStyle: newGuestbookBgStyle,
-        }, { merge: true });
+        });
       } else {
-        await setDoc(doc(db, "guestbook", entryId), {
+        await saveItem("guestbook", entryId, {
           id: entryId,
           sender: newGuestbookSender.trim(),
           title: newGuestbookTitle.trim(),
@@ -1368,7 +1814,7 @@ export default function App() {
     };
 
     try {
-      await setDoc(doc(db, "classmates", classmateId), classmateDoc);
+      await saveItem("classmates", classmateId, classmateDoc);
       handleCloseClassmateForm();
       triggerVintageConfetti();
     } catch (err) {
@@ -1453,7 +1899,7 @@ export default function App() {
     };
 
     try {
-      await setDoc(doc(db, "collectivePhotos", colId), item);
+      await saveItem("collectivePhotos", colId, item);
       handleCloseColForm();
       triggerVintageConfetti();
     } catch (err) {
@@ -1491,7 +1937,7 @@ export default function App() {
     };
 
     try {
-      await setDoc(doc(db, "memoryPhotos", memId), item);
+      await saveItem("memoryPhotos", memId, item);
       handleCloseMemForm();
       triggerVintageConfetti();
     } catch (err) {
@@ -1520,7 +1966,7 @@ export default function App() {
     };
 
     try {
-      await setDoc(doc(db, "memoryVideos", vidId), item);
+      await saveItem("memoryVideos", vidId, item);
       handleCloseVidForm();
       triggerVintageConfetti();
     } catch (err) {
@@ -1577,31 +2023,37 @@ export default function App() {
 
     try {
       if (type === "restore") {
-        // Reset to original default classmates: clear classmates and seed again
-        const classmatesCol = collection(db, "classmates");
-        const classmatesSnap = await getDocs(classmatesCol);
-        for (const docSnap of classmatesSnap.docs) {
-          await deleteDoc(doc(db, "classmates", docSnap.id));
-        }
-        for (const classmate of DEFAULT_CLASSMATES) {
-          await setDoc(doc(db, "classmates", classmate.id), classmate);
+        if (dbMode === "local") {
+          const dbSuffix = databaseId || "default";
+          safeSaveToLocalStorage(`local-db-classmates-${dbSuffix}`, DEFAULT_CLASSMATES);
+          setClassmates(DEFAULT_CLASSMATES);
+        } else {
+          // Reset to original default classmates: clear classmates and seed again
+          const classmatesCol = collection(db, "classmates");
+          const classmatesSnap = await getDocs(classmatesCol);
+          for (const docSnap of classmatesSnap.docs) {
+            await deleteDoc(doc(db, "classmates", docSnap.id));
+          }
+          for (const classmate of DEFAULT_CLASSMATES) {
+            await setDoc(doc(db, "classmates", classmate.id), classmate);
+          }
         }
         setFlippedCards({});
       } else if (type === "classmate" && id) {
-        await deleteDoc(doc(db, "classmates", id));
+        await deleteItem("classmates", id);
         setFlippedCards((prev) => {
           const next = { ...prev };
           delete next[id];
           return next;
         });
       } else if (type === "collective" && id) {
-        await deleteDoc(doc(db, "collectivePhotos", id));
+        await deleteItem("collectivePhotos", id);
       } else if (type === "memory" && id) {
-        await deleteDoc(doc(db, "memoryPhotos", id));
+        await deleteItem("memoryPhotos", id);
       } else if (type === "video" && id) {
-        await deleteDoc(doc(db, "memoryVideos", id));
+        await deleteItem("memoryVideos", id);
       } else if (type === "guestbook" && id) {
-        await deleteDoc(doc(db, "guestbook", id));
+        await deleteItem("guestbook", id);
       } else if (type === "album" && id) {
         const affected = collectivePhotos.filter(p => p.albumId === id);
         for (const p of affected) {
@@ -1613,9 +2065,9 @@ export default function App() {
               delete (updated as any)[key];
             }
           });
-          await setDoc(doc(db, "collectivePhotos", p.id), updated);
+          await saveItem("collectivePhotos", p.id, updated);
         }
-        await deleteDoc(doc(db, "collectiveAlbums", id));
+        await deleteItem("collectiveAlbums", id);
         setSelectedAlbumId("all");
       }
     } catch (err) {
@@ -1624,6 +2076,139 @@ export default function App() {
 
     setConfirmTarget(null);
     triggerVintageConfetti();
+  };
+
+  // Export backup of current loaded memory data
+  const handleExportBackup = () => {
+    try {
+      const backupData = {
+        databaseId: databaseId || "default",
+        exportDate: new Date().toISOString(),
+        classmates,
+        collectiveAlbums,
+        collectivePhotos,
+        memoryPhotos,
+        memoryVideos,
+        guestbook: guestbookEntries
+      };
+      
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ky-yeu-12A-sao-luu-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert("Đã tải tệp chứa bản sao lưu thành công!");
+    } catch (err) {
+      console.error("Lỗi khi tạo bản sao lưu:", err);
+      alert("Có lỗi xảy ra khi tạo bản sao lưu. Vui lòng thử lại!");
+    }
+  };
+
+  // Import backup data from JSON file
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (!data.classmates && !data.guestbook && !data.collectivePhotos) {
+        alert("Định dạng file sao lưu không hợp lệ hoặc không có dữ liệu!");
+        return;
+      }
+
+      const confirmImport = confirm(
+        "Bạn có chắc chắn muốn nhập dữ liệu này không? Hành động này sẽ thay thế dữ liệu hiện tại ngay lập tức."
+      );
+      if (!confirmImport) return;
+
+      const dbSuffix = databaseId || "default";
+
+      // Save each to local storage
+      if (data.classmates) {
+        safeSaveToLocalStorage(`local-db-classmates-${dbSuffix}`, data.classmates);
+        setClassmates(data.classmates);
+      }
+      if (data.collectiveAlbums) {
+        safeSaveToLocalStorage(`local-db-collectiveAlbums-${dbSuffix}`, data.collectiveAlbums);
+        setCollectiveAlbums(data.collectiveAlbums);
+      }
+      if (data.collectivePhotos) {
+        safeSaveToLocalStorage(`local-db-collectivePhotos-${dbSuffix}`, data.collectivePhotos);
+        setCollectivePhotos(data.collectivePhotos);
+      }
+      if (data.memoryPhotos) {
+        safeSaveToLocalStorage(`local-db-memoryPhotos-${dbSuffix}`, data.memoryPhotos);
+        setMemoryPhotos(data.memoryPhotos);
+      }
+      if (data.memoryVideos) {
+        safeSaveToLocalStorage(`local-db-memoryVideos-${dbSuffix}`, data.memoryVideos);
+        setMemoryVideos(data.memoryVideos);
+      }
+      if (data.guestbook) {
+        safeSaveToLocalStorage(`local-db-guestbook-${dbSuffix}`, data.guestbook);
+        setGuestbookEntries(data.guestbook);
+      }
+
+      // If in cloud mode, attempt write-through, but catch quota gracefully
+      if (dbMode === "cloud") {
+        try {
+          alert("Dữ liệu đã được lưu cục bộ cực kỳ an toàn! Đang cố gắng đẩy đồng bộ lên máy chủ đám mây...");
+          
+          if (data.classmates) {
+            for (const x of data.classmates) {
+              await setDoc(doc(db, "classmates", x.id), x);
+            }
+          }
+          if (data.collectiveAlbums) {
+            for (const x of data.collectiveAlbums) {
+              await setDoc(doc(db, "collectiveAlbums", x.id), x);
+            }
+          }
+          if (data.collectivePhotos) {
+            for (const x of data.collectivePhotos) {
+              await setDoc(doc(db, "collectivePhotos", x.id), x);
+            }
+          }
+          if (data.memoryPhotos) {
+            for (const x of data.memoryPhotos) {
+              await setDoc(doc(db, "memoryPhotos", x.id), x);
+            }
+          }
+          if (data.memoryVideos) {
+            for (const x of data.memoryVideos) {
+              await setDoc(doc(db, "memoryVideos", x.id), x);
+            }
+          }
+          if (data.guestbook) {
+            for (const x of data.guestbook) {
+              await setDoc(doc(db, "guestbook", x.id), x);
+            }
+          }
+          
+          alert("Đồng bộ thành công dữ liệu khôi phục lên đám mây!");
+        } catch (cloudErr) {
+          console.warn("Lỗi đồng bộ đám mây (có thể do hết hạn ngạch):", cloudErr);
+          setIsQuotaExceeded(true);
+          setDbMode("local");
+          localStorage.setItem("ky-yeu-db-mode", "local");
+          alert("Lưu ý: Do hết hạn ngạch máy chủ đám mây nên hệ thống đã tự động chuyển sang chế độ Ngoại tuyến. Toàn bộ dữ liệu bạn nhập đã khôi phục đầy đủ và lưu tại Trình duyệt này!");
+        }
+      } else {
+        alert("Khôi phục bản sao lưu tại thiết bị thành công!");
+      }
+
+      setIsBackupModalOpen(false);
+      triggerVintageConfetti();
+    } catch (err) {
+      console.error("Lỗi khi nhập bản sao lưu:", err);
+      alert("Đọc tệp sao lưu thất bại. Vui lòng kiểm tra định dạng file!");
+    }
   };
 
   // Filter & Search Logic
@@ -1706,14 +2291,82 @@ export default function App() {
         </div>
       </div>
 
+      {/* LOCAL FALLBACK CRITICAL NOTIFICATION BANNER */}
+      {dbMode === "local" && (
+        <div id="local-mode-banner" className="bg-amber-50 border-b border-amber-200 py-3 px-4 text-center text-xs text-amber-900 font-sans relative z-30 shadow-inner flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Database size={14} className="text-amber-700 animate-pulse" />
+            {isQuotaExceeded ? (
+              <span>⚠️ <strong>Chế độ Ngoại tuyến (Tự động):</strong> Đám mây Firestore tạm thời vượt quá hạn ngạch đọc ngày miễn phí của Google. Đã kích hoạt lưu trữ trình duyệt để không bị gián đoạn.</span>
+            ) : (
+              <span>ℹ️ <strong>Chế độ Ngoại tuyến:</strong> Dữ liệu đang lưu tại trình duyệt này. Bạn có thể tự do chỉnh sửa, phản hồi mà không lo hết hạn ngạch máy chủ!</span>
+            )}
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsBackupModalOpen(true)}
+              className="underline hover:text-amber-950 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <Download size={12} /> Sao lưu & khôi phục dữ liệu
+            </button>
+            {!isQuotaExceeded && (
+              <button
+                onClick={() => {
+                  setDbMode("cloud");
+                  localStorage.setItem("ky-yeu-db-mode", "cloud");
+                  window.location.reload();
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white rounded px-2.5 py-0.5 font-bold transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw size={10} /> Thử kết nối đám mây
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 2. MAIN HEADER & HERO */}
       <header className="max-w-5xl mx-auto px-4 pt-12 pb-8 text-center relative">
         <div className="absolute top-2 left-1/2 -translate-x-1/2 opacity-5 pointer-events-none">
           <GraduationCap size={240} className="text-[#5A5A40]" />
         </div>
 
-        {/* Nút Đăng nhập/Đăng xuất Admin góc phải phía trên */}
-        <div className="absolute top-2 right-4 z-40">
+        {/* Hộp điều khiển hệ thống góc phải */}
+        <div id="system-controls-box" className="absolute top-2 right-4 z-40 flex items-center gap-2">
+          {/* Nút Sao lưu & khôi phục */}
+          <button
+            onClick={() => setIsBackupModalOpen(true)}
+            className="px-2.5 py-1.5 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+            title="Sao lưu toàn bộ dữ liệu hoặc khôi phục từ file lưu"
+          >
+            <Download size={12} />
+            <span className="hidden sm:inline">Sao Lưu</span>
+          </button>
+
+          {/* Nút Trạng thái CSDL */}
+          <button
+            onClick={() => {
+              if (dbMode === "cloud") {
+                setDbMode("local");
+                localStorage.setItem("ky-yeu-db-mode", "local");
+                loadAllLocalData();
+              } else {
+                setDbMode("cloud");
+                localStorage.setItem("ky-yeu-db-mode", "cloud");
+                window.location.reload();
+              }
+            }}
+            className={`px-2.5 py-1.5 border rounded-sm text-xs font-sans font-medium flex items-center gap-1 transition-all shadow-sm cursor-pointer ${
+              dbMode === "cloud"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                : "bg-amber-50 text-amber-700 border-amber-200"
+            }`}
+            title={dbMode === "cloud" ? "Đang kết nối Cloud Firestore. Bấm để chuyển ngoại tuyến" : "Đang lưu tại Trình duyệt. Bấm để chuyển kết nối Đám mây"}
+          >
+            <Database size={11} className={dbMode === "cloud" ? "animate-pulse font-bold" : ""} />
+            <span className="hidden sm:inline">{dbMode === "cloud" ? "Máy Chủ" : "Ngoại Tuyến"}</span>
+          </button>
+
           {isAdmin ? (
             <button
               onClick={() => {
@@ -1926,7 +2579,41 @@ export default function App() {
 
           {/* 4. CENTRAL CLASSMATE FLIP-CARDS GRID (4 cột, một dòng gồm 4 ảnh) */}
           <main className="max-w-5xl mx-auto px-4 relative z-10">
-            {filteredClassmates.length === 0 ? (
+            {classmates.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-16 px-6 bg-white rounded-3xl border border-stone-200/80 shadow-sm max-w-xl mx-auto font-sans"
+              >
+                <HelpCircle size={48} className="mx-auto text-[#5A5A40] mb-4 opacity-75" />
+                <h3 className="text-lg font-semibold text-stone-800 mb-2">Cơ sở dữ liệu của bạn chưa có thông tin</h3>
+                <p className="text-stone-600 text-sm max-w-md mx-auto mb-6 leading-relaxed">
+                  Chúng tôi phát hiện thấy cơ sở dữ liệu Firestore (ID: {databaseId || "(default)"}) hiện tại đang trống. Bạn có thể tự động nạp toàn bộ ảnh học sinh, ảnh tập thể, danh sách lớp học và lưu bút mẫu của lớp 12A.CMB chỉ với một cú click!
+                </p>
+                <button
+                  onClick={async () => {
+                    setIsLoading(true);
+                    try {
+                      await seedDatabase();
+                      const dbSuffix = databaseId || "default";
+                      localStorage.setItem(`ky-yeu-db-seeded-${dbSuffix}`, "true");
+                    } catch (err) {
+                      console.warn("Firestore Seed failed (quota/permissions), falling back to browser storage:", err);
+                      setIsQuotaExceeded(true);
+                      setDbMode("local");
+                      localStorage.setItem("ky-yeu-db-mode", "local");
+                      loadAllLocalData();
+                      alert("⚠️ Máy chủ lưu trữ đang bận hoặc hết ngạch miễn phí hôm nay. Kỷ Yếu đã tự động kích hoạt Chế độ Trình duyệt, nạp thành công toàn bộ dữ liệu mẫu lớp học để bạn xem & tùy ý chỉnh sửa ngay!");
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  className="px-6 py-3 font-semibold text-white bg-[#5A5A40] hover:bg-[#484833] rounded-sm transition-all shadow-md inline-flex items-center gap-2 text-sm"
+                >
+                  ✨ Nạp Dữ Liệu Mẫu Ngay
+                </button>
+              </motion.div>
+            ) : filteredClassmates.length === 0 ? (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -4110,6 +4797,132 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ===================== MODAL SAO LƯU & KHÔI PHỤC DỮ LIỆU ===================== */}
+      <AnimatePresence>
+        {isBackupModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBackupModalOpen(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              id="backup-restore-modal"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="bg-[#F9F7F2] rounded-sm shadow-xl border border-stone-200 max-w-lg w-full p-6 md:p-8 relative z-10 text-[#5A5A40]"
+            >
+              <button
+                onClick={() => setIsBackupModalOpen(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-sm text-stone-400 hover:text-stone-700 hover:bg-stone-50 transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="flex items-center gap-3 mb-6 border-b border-stone-200/80 pb-4">
+                <div className="w-10 h-10 bg-[#FEF9E7] rounded-full flex items-center justify-center text-[#5A5A40] border border-[#E5E0C0] shrink-0">
+                  <Database size={18} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-medium tracking-wide">Sao Lưu & Khôi Phục Dữ Liệu</h2>
+                  <p className="text-xs text-stone-500 font-sans font-light mt-0.5">
+                    Quản lý bộ nhớ lưu giữ kỷ niệm lớp học
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Section */}
+              <div className="bg-white p-4 border border-stone-200/80 rounded mb-6 font-sans">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Trạng Thái Kết Nối</h4>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Phương thức lưu trữ hoạt động:</span>
+                  <span className={`text-sm font-bold flex items-center gap-1.5 ${dbMode === "cloud" ? "text-emerald-600" : "text-amber-600"}`}>
+                    <span className="w-2.5 h-2.5 rounded-full bg-current animate-pulse inline-block" />
+                    {dbMode === "cloud" ? "Ổ mây (Cloud Firestore)" : "Bộ nhớ trình duyệt (Ngoại tuyến)"}
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 leading-relaxed font-light">
+                  {dbMode === "cloud" ? (
+                    "Mọi thay đổi của lớp học đang được đồng bộ trực tuyến với cơ sớ dữ liệu Firestore của Google. Mỗi ngày bạn có tối đa 50k lượt đọc miễn phí trên toàn bộ hệ thống lớp học."
+                  ) : isQuotaExceeded ? (
+                    "MÁY CHỦ HẾT HẠN NGẠCH NGÀY CHẠY MẪU: Đám mây Firestore miễn phí của dự án tạm thời đã dùng hết 50k lượt của ngày hôm nay. Hệ thống đã tự động kích hoạt Lưu trữ Trình duyệt. Bạn có thể tự do chỉnh sửa, lưu trữ kỷ niệm tại trình duyệt của riêng mình mà không gặp bất kỳ lỗi gì!"
+                  ) : (
+                    "Dữ liệu đang được lưu cục bộ trên trình duyệt máy này. Mọi hành động thêm thành viên, chỉnh sửa ảnh kỷ vật hoặc phản hồi sẽ lưu cực kỳ an toàn ở đây của bạn."
+                  )}
+                </p>
+              </div>
+
+              {/* Action grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-sans mb-4">
+                {/* Export Column */}
+                <div className="border border-stone-200/60 p-4 bg-[#FAF9F5] rounded flex flex-col items-center text-center">
+                  <Download size={24} className="text-stone-500 mb-2" />
+                  <h3 className="text-sm font-semibold text-stone-700 mb-1">Tải Bản Sao Lưu (.json)</h3>
+                  <p className="text-[11px] text-stone-500 mb-4 font-light">
+                    Tải toàn bộ Profile học sinh, bình luận lưu bút và Album ảnh về máy tính để bảo quản vĩnh viễn dữ liệu.
+                  </p>
+                  <button
+                    onClick={handleExportBackup}
+                    className="mt-auto w-full px-4 py-2 bg-[#5A5A40] text-white hover:bg-[#4A4A30] text-xs font-bold rounded-sm transition-all shadow-sm cursor-pointer"
+                  >
+                    Tải Bản Sao Lưu Ngay
+                  </button>
+                </div>
+
+                {/* Import Column */}
+                <div className="border border-stone-200/60 p-4 bg-[#FAF9F5] rounded flex flex-col items-center text-center relative">
+                  <Upload size={24} className="text-stone-500 mb-2" />
+                  <h3 className="text-sm font-semibold text-stone-700 mb-1">Nhập Lại Bản Sao (.json)</h3>
+                  <p className="text-[11px] text-stone-500 mb-4 font-light">
+                    Ghi đè hoặc khôi phục dữ liệu kỷ yếu lớp từ một file sao lưu .json đã lưu trước đó trên thiết bị.
+                  </p>
+                  <label className="mt-auto w-full px-4 py-2 border border-[#5A5A40] text-[#5A5A40] hover:bg-stone-50 text-xs font-bold rounded-sm text-center block cursor-pointer transition-all">
+                    Chọn File Khôi Phục
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportBackup}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* DB Manual Switch */}
+              <div className="border-t border-stone-200/80 pt-4 font-sans text-center flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-stone-500">
+                  Muốn chuyển đổi thủ công để lưu kết nối?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (dbMode === "cloud") {
+                      setDbMode("local");
+                      localStorage.setItem("ky-yeu-db-mode", "local");
+                      loadAllLocalData();
+                    } else {
+                      setDbMode("cloud");
+                      localStorage.setItem("ky-yeu-db-mode", "cloud");
+                      window.location.reload();
+                    }
+                  }}
+                  className="px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded text-xs font-semibold cursor-pointer transition-all"
+                >
+                  Chuyển sang lưu trữ {dbMode === "cloud" ? "Trình duyệt (Local)" : "Máy chủ đám mây"}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
