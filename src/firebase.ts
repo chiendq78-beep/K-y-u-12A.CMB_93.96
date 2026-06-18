@@ -8,7 +8,7 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
-}); /* CRITICAL: The app will break without this line */
+}, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const auth = getAuth();
 export const databaseId = firebaseConfig.firestoreDatabaseId;
 

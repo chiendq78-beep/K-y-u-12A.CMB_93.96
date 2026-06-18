@@ -467,6 +467,7 @@ export default function App() {
   // Persistence with Firestore (starts with defaults to avoid flash, then updates via observers)
   const [classmates, setClassmates] = useState<Classmate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStorageReady, setIsStorageReady] = useState(false);
 
   // Main navigation tabs state: 'portrait' | 'collective' | 'memories' | 'guestbook' | 'video'
   const [activeMainTab, setActiveMainTab] = useState<"portrait" | "collective" | "memories" | "guestbook" | "video">("portrait");
@@ -507,17 +508,21 @@ export default function App() {
 
   const [memoryVideos, setMemoryVideos] = useState<{ id: string; title: string; description: string; url: string }[]>([]);
 
-  // Dual-mode Storage State: Google Cloud Firestore vs Local Browser Storage
-  const [dbMode, setDbMode] = useState<"cloud" | "local">(() => {
-    const saved = localStorage.getItem("ky-yeu-db-mode");
-    if (saved === "local") return "local";
-    return "cloud";
-  });
+  // Storage State: Always online with Google Cloud Firestore! Offline fallback/local mode is completely removed per user request.
+  const dbMode = "cloud";
+  const setDbMode = (mode: "cloud" | "local") => {
+    console.log("Database set to cloud mode:", mode);
+  };
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
   // Warm up memory cache from IndexedDB offline storage on mount
   useEffect(() => {
+    localStorage.setItem("ky-yeu-db-mode", "cloud");
+    let safetyStorageTimeout = setTimeout(() => {
+      setIsStorageReady(true);
+    }, 1500); // 1.5 seconds maximum safety backup for storage warmup
+
     const warmupIndexedDB = async () => {
       try {
         const dbSuffix = databaseId || "default";
@@ -538,13 +543,13 @@ export default function App() {
       } catch (e) {
         console.warn("Warmup IndexedDB cache failed:", e);
       } finally {
-        if (dbMode === "local") {
-          loadAllLocalData();
-        }
+        clearTimeout(safetyStorageTimeout);
+        setIsStorageReady(true);
       }
     };
     warmupIndexedDB();
-  }, [dbMode]);
+    return () => clearTimeout(safetyStorageTimeout);
+  }, []);
 
   const loadAllLocalData = () => {
     const dbSuffix = databaseId || "default";
@@ -618,38 +623,12 @@ export default function App() {
     }
     safeSaveToLocalStorage(localKey, list);
 
-    if (dbMode === "local") {
-      if (collectionName === "classmates") {
-        const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
-        setClassmates(sorted);
-      } else if (collectionName === "collectiveAlbums") {
-        setCollectiveAlbums(list);
-      } else if (collectionName === "collectivePhotos") {
-        setCollectivePhotos(list);
-      } else if (collectionName === "memoryPhotos") {
-        setMemoryPhotos(list);
-      } else if (collectionName === "memoryVideos") {
-        setMemoryVideos(list);
-      } else if (collectionName === "guestbook") {
-        const sorted = [...list].sort((a, b) => {
-          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return tB - tA;
-        });
-        setGuestbookEntries(sorted);
-      }
-      return;
-    }
-
     try {
       await setDoc(doc(db, collectionName, id), itemData, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${id}`);
       if (err instanceof Error && (err.message.includes("quota") || err.message.includes("Quota") || err.message.includes("resource-exhausted") || err.message.includes("LIMIT_EXCEEDED") || err.message.includes("exceeded"))) {
         setIsQuotaExceeded(true);
-        setDbMode("local");
-        localStorage.setItem("ky-yeu-db-mode", "local");
-        loadAllLocalData();
       } else {
         throw err;
       }
@@ -664,32 +643,12 @@ export default function App() {
     list = list.filter((x: any) => x.id !== id);
     safeSaveToLocalStorage(localKey, list);
 
-    if (dbMode === "local") {
-      if (collectionName === "classmates") {
-        setClassmates(list);
-      } else if (collectionName === "collectiveAlbums") {
-        setCollectiveAlbums(list);
-      } else if (collectionName === "collectivePhotos") {
-        setCollectivePhotos(list);
-      } else if (collectionName === "memoryPhotos") {
-        setMemoryPhotos(list);
-      } else if (collectionName === "memoryVideos") {
-        setMemoryVideos(list);
-      } else if (collectionName === "guestbook") {
-        setGuestbookEntries(list);
-      }
-      return;
-    }
-
     try {
       await deleteDoc(doc(db, collectionName, id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
       if (err instanceof Error && (err.message.includes("quota") || err.message.includes("Quota") || err.message.includes("resource-exhausted") || err.message.includes("LIMIT_EXCEEDED") || err.message.includes("exceeded"))) {
         setIsQuotaExceeded(true);
-        setDbMode("local");
-        localStorage.setItem("ky-yeu-db-mode", "local");
-        loadAllLocalData();
       } else {
         throw err;
       }
@@ -754,13 +713,8 @@ export default function App() {
 
   // Sync with Firestore using real-time observers
   useEffect(() => {
+    if (!isStorageReady) return;
     let active = true;
-
-    if (dbMode === "local") {
-      loadAllLocalData();
-      setIsLoading(false);
-      return;
-    }
 
     let unsubClassmates: (() => void) | null = null;
     let unsubCol: (() => void) | null = null;
@@ -774,12 +728,17 @@ export default function App() {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes("quota") || msg.includes("Quota") || msg.includes("resource-exhausted") || msg.includes("LIMIT_EXCEEDED") || msg.includes("exceeded")) {
         setIsQuotaExceeded(true);
-        setDbMode("local");
-        localStorage.setItem("ky-yeu-db-mode", "local");
       }
     };
 
     const initDataAndListen = async () => {
+      // Set up a safety loading release after 3.5s maximum to avoid freezing on slow connections, registered first before any await!
+      safetyTimeout = setTimeout(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      }, 3500);
+
       // Direct optimization check: if database has already been seeded on this client, do NOT block on sequential checks!
       const dbSuffix = databaseId || "default";
       const seedKey = `ky-yeu-db-seeded-${dbSuffix}`;
@@ -809,13 +768,6 @@ export default function App() {
           }
         }
       };
-
-      // Set up a safety loading release after 3.5s maximum to avoid freezing on slow connections
-      safetyTimeout = setTimeout(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      }, 3500);
 
       const dbSuffix2 = databaseId || "default";
 
@@ -1069,7 +1021,7 @@ export default function App() {
       if (unsubAlbums) unsubAlbums();
       if (unsubGuestbook) unsubGuestbook();
     };
-  }, [dbMode]);
+  }, [isStorageReady]);
 
   // States
   const [searchQuery, setSearchQuery] = useState("");
@@ -2023,20 +1975,14 @@ export default function App() {
 
     try {
       if (type === "restore") {
-        if (dbMode === "local") {
-          const dbSuffix = databaseId || "default";
-          safeSaveToLocalStorage(`local-db-classmates-${dbSuffix}`, DEFAULT_CLASSMATES);
-          setClassmates(DEFAULT_CLASSMATES);
-        } else {
-          // Reset to original default classmates: clear classmates and seed again
-          const classmatesCol = collection(db, "classmates");
-          const classmatesSnap = await getDocs(classmatesCol);
-          for (const docSnap of classmatesSnap.docs) {
-            await deleteDoc(doc(db, "classmates", docSnap.id));
-          }
-          for (const classmate of DEFAULT_CLASSMATES) {
-            await setDoc(doc(db, "classmates", classmate.id), classmate);
-          }
+        // Reset to original default classmates: clear classmates and seed again
+        const classmatesCol = collection(db, "classmates");
+        const classmatesSnap = await getDocs(classmatesCol);
+        for (const docSnap of classmatesSnap.docs) {
+          await deleteDoc(doc(db, "classmates", docSnap.id));
+        }
+        for (const classmate of DEFAULT_CLASSMATES) {
+          await setDoc(doc(db, "classmates", classmate.id), classmate);
         }
         setFlippedCards({});
       } else if (type === "classmate" && id) {
@@ -2155,52 +2101,45 @@ export default function App() {
         setGuestbookEntries(data.guestbook);
       }
 
-      // If in cloud mode, attempt write-through, but catch quota gracefully
-      if (dbMode === "cloud") {
-        try {
-          alert("Dữ liệu đã được lưu cục bộ cực kỳ an toàn! Đang cố gắng đẩy đồng bộ lên máy chủ đám mây...");
-          
-          if (data.classmates) {
-            for (const x of data.classmates) {
-              await setDoc(doc(db, "classmates", x.id), x);
-            }
+      try {
+        alert("Dữ liệu đã được lưu cục bộ cực kỳ an toàn! Đang cố gắng đẩy đồng bộ lên máy chủ đám mây...");
+        
+        if (data.classmates) {
+          for (const x of data.classmates) {
+            await setDoc(doc(db, "classmates", x.id), x);
           }
-          if (data.collectiveAlbums) {
-            for (const x of data.collectiveAlbums) {
-              await setDoc(doc(db, "collectiveAlbums", x.id), x);
-            }
-          }
-          if (data.collectivePhotos) {
-            for (const x of data.collectivePhotos) {
-              await setDoc(doc(db, "collectivePhotos", x.id), x);
-            }
-          }
-          if (data.memoryPhotos) {
-            for (const x of data.memoryPhotos) {
-              await setDoc(doc(db, "memoryPhotos", x.id), x);
-            }
-          }
-          if (data.memoryVideos) {
-            for (const x of data.memoryVideos) {
-              await setDoc(doc(db, "memoryVideos", x.id), x);
-            }
-          }
-          if (data.guestbook) {
-            for (const x of data.guestbook) {
-              await setDoc(doc(db, "guestbook", x.id), x);
-            }
-          }
-          
-          alert("Đồng bộ thành công dữ liệu khôi phục lên đám mây!");
-        } catch (cloudErr) {
-          console.warn("Lỗi đồng bộ đám mây (có thể do hết hạn ngạch):", cloudErr);
-          setIsQuotaExceeded(true);
-          setDbMode("local");
-          localStorage.setItem("ky-yeu-db-mode", "local");
-          alert("Lưu ý: Do hết hạn ngạch máy chủ đám mây nên hệ thống đã tự động chuyển sang chế độ Ngoại tuyến. Toàn bộ dữ liệu bạn nhập đã khôi phục đầy đủ và lưu tại Trình duyệt này!");
         }
-      } else {
-        alert("Khôi phục bản sao lưu tại thiết bị thành công!");
+        if (data.collectiveAlbums) {
+          for (const x of data.collectiveAlbums) {
+            await setDoc(doc(db, "collectiveAlbums", x.id), x);
+          }
+        }
+        if (data.collectivePhotos) {
+          for (const x of data.collectivePhotos) {
+            await setDoc(doc(db, "collectivePhotos", x.id), x);
+          }
+        }
+        if (data.memoryPhotos) {
+          for (const x of data.memoryPhotos) {
+            await setDoc(doc(db, "memoryPhotos", x.id), x);
+          }
+        }
+        if (data.memoryVideos) {
+          for (const x of data.memoryVideos) {
+            await setDoc(doc(db, "memoryVideos", x.id), x);
+          }
+        }
+        if (data.guestbook) {
+          for (const x of data.guestbook) {
+            await setDoc(doc(db, "guestbook", x.id), x);
+          }
+        }
+        
+        alert("Đồng bộ thành công dữ liệu khôi phục lên đám mây!");
+      } catch (cloudErr) {
+        console.warn("Lỗi đồng bộ đám mây (có thể do hết hạn ngạch):", cloudErr);
+        setIsQuotaExceeded(true);
+        alert("Lưu ý: Không thể đồng bộ trực tiếp lên máy chủ đám mây vào lúc này. Bản sao lưu của bạn vẫn đang được lưu an toàn tại bộ nhớ đệm trình duyệt!");
       }
 
       setIsBackupModalOpen(false);
@@ -2291,39 +2230,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* LOCAL FALLBACK CRITICAL NOTIFICATION BANNER */}
-      {dbMode === "local" && (
-        <div id="local-mode-banner" className="bg-amber-50 border-b border-amber-200 py-3 px-4 text-center text-xs text-amber-900 font-sans relative z-30 shadow-inner flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          <span className="flex items-center gap-1.5 font-medium">
-            <Database size={14} className="text-amber-700 animate-pulse" />
-            {isQuotaExceeded ? (
-              <span>⚠️ <strong>Chế độ Ngoại tuyến (Tự động):</strong> Đám mây Firestore tạm thời vượt quá hạn ngạch đọc ngày miễn phí của Google. Đã kích hoạt lưu trữ trình duyệt để không bị gián đoạn.</span>
-            ) : (
-              <span>ℹ️ <strong>Chế độ Ngoại tuyến:</strong> Dữ liệu đang lưu tại trình duyệt này. Bạn có thể tự do chỉnh sửa, phản hồi mà không lo hết hạn ngạch máy chủ!</span>
-            )}
-          </span>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsBackupModalOpen(true)}
-              className="underline hover:text-amber-950 font-bold flex items-center gap-1 cursor-pointer"
-            >
-              <Download size={12} /> Sao lưu & khôi phục dữ liệu
-            </button>
-            {!isQuotaExceeded && (
-              <button
-                onClick={() => {
-                  setDbMode("cloud");
-                  localStorage.setItem("ky-yeu-db-mode", "cloud");
-                  window.location.reload();
-                }}
-                className="bg-amber-600 hover:bg-amber-700 text-white rounded px-2.5 py-0.5 font-bold transition-all flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw size={10} /> Thử kết nối đám mây
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+
 
       {/* 2. MAIN HEADER & HERO */}
       <header className="max-w-5xl mx-auto px-4 pt-12 pb-8 text-center relative">
@@ -2333,40 +2240,6 @@ export default function App() {
 
         {/* Hộp điều khiển hệ thống góc phải */}
         <div id="system-controls-box" className="absolute top-2 right-4 z-40 flex items-center gap-2">
-          {/* Nút Sao lưu & khôi phục */}
-          <button
-            onClick={() => setIsBackupModalOpen(true)}
-            className="px-2.5 py-1.5 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1 transition-all shadow-sm cursor-pointer"
-            title="Sao lưu toàn bộ dữ liệu hoặc khôi phục từ file lưu"
-          >
-            <Download size={12} />
-            <span className="hidden sm:inline">Sao Lưu</span>
-          </button>
-
-          {/* Nút Trạng thái CSDL */}
-          <button
-            onClick={() => {
-              if (dbMode === "cloud") {
-                setDbMode("local");
-                localStorage.setItem("ky-yeu-db-mode", "local");
-                loadAllLocalData();
-              } else {
-                setDbMode("cloud");
-                localStorage.setItem("ky-yeu-db-mode", "cloud");
-                window.location.reload();
-              }
-            }}
-            className={`px-2.5 py-1.5 border rounded-sm text-xs font-sans font-medium flex items-center gap-1 transition-all shadow-sm cursor-pointer ${
-              dbMode === "cloud"
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-amber-50 text-amber-700 border-amber-200"
-            }`}
-            title={dbMode === "cloud" ? "Đang kết nối Cloud Firestore. Bấm để chuyển ngoại tuyến" : "Đang lưu tại Trình duyệt. Bấm để chuyển kết nối Đám mây"}
-          >
-            <Database size={11} className={dbMode === "cloud" ? "animate-pulse font-bold" : ""} />
-            <span className="hidden sm:inline">{dbMode === "cloud" ? "Máy Chủ" : "Ngoại Tuyến"}</span>
-          </button>
-
           {isAdmin ? (
             <button
               onClick={() => {
@@ -4847,20 +4720,14 @@ export default function App() {
               <div className="bg-white p-4 border border-stone-200/80 rounded mb-6 font-sans">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Trạng Thái Kết Nối</h4>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Phương thức lưu trữ hoạt động:</span>
-                  <span className={`text-sm font-bold flex items-center gap-1.5 ${dbMode === "cloud" ? "text-emerald-600" : "text-amber-600"}`}>
+                  <span className="text-sm font-medium">Hệ thống lưu trữ:</span>
+                  <span className="text-sm font-bold flex items-center gap-1.5 text-emerald-600">
                     <span className="w-2.5 h-2.5 rounded-full bg-current animate-pulse inline-block" />
-                    {dbMode === "cloud" ? "Ổ mây (Cloud Firestore)" : "Bộ nhớ trình duyệt (Ngoại tuyến)"}
+                    Đồng bộ Đám mây (Cloud Firestore)
                   </span>
                 </div>
                 <p className="text-xs text-stone-500 leading-relaxed font-light">
-                  {dbMode === "cloud" ? (
-                    "Mọi thay đổi của lớp học đang được đồng bộ trực tuyến với cơ sớ dữ liệu Firestore của Google. Mỗi ngày bạn có tối đa 50k lượt đọc miễn phí trên toàn bộ hệ thống lớp học."
-                  ) : isQuotaExceeded ? (
-                    "MÁY CHỦ HẾT HẠN NGẠCH NGÀY CHẠY MẪU: Đám mây Firestore miễn phí của dự án tạm thời đã dùng hết 50k lượt của ngày hôm nay. Hệ thống đã tự động kích hoạt Lưu trữ Trình duyệt. Bạn có thể tự do chỉnh sửa, lưu trữ kỷ niệm tại trình duyệt của riêng mình mà không gặp bất kỳ lỗi gì!"
-                  ) : (
-                    "Dữ liệu đang được lưu cục bộ trên trình duyệt máy này. Mọi hành động thêm thành viên, chỉnh sửa ảnh kỷ vật hoặc phản hồi sẽ lưu cực kỳ an toàn ở đây của bạn."
-                  )}
+                  Mọi thay đổi của lớp học đang được đồng bộ trực tuyến với cơ sớ dữ liệu Firestore của Google để đảm bảo dữ liệu hiển thị đồng nhất ở mọi thiết bị và tên miền của bạn.
                 </p>
               </div>
 
@@ -4898,30 +4765,6 @@ export default function App() {
                     />
                   </label>
                 </div>
-              </div>
-
-              {/* DB Manual Switch */}
-              <div className="border-t border-stone-200/80 pt-4 font-sans text-center flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-stone-500">
-                  Muốn chuyển đổi thủ công để lưu kết nối?
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (dbMode === "cloud") {
-                      setDbMode("local");
-                      localStorage.setItem("ky-yeu-db-mode", "local");
-                      loadAllLocalData();
-                    } else {
-                      setDbMode("cloud");
-                      localStorage.setItem("ky-yeu-db-mode", "cloud");
-                      window.location.reload();
-                    }
-                  }}
-                  className="px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded text-xs font-semibold cursor-pointer transition-all"
-                >
-                  Chuyển sang lưu trữ {dbMode === "cloud" ? "Trình duyệt (Local)" : "Máy chủ đám mây"}
-                </button>
               </div>
             </motion.div>
           </div>
@@ -4992,6 +4835,15 @@ export default function App() {
             <Clock size={15} className="text-[#405A40]" />
             <span>{new Date().toLocaleDateString("vi-VN")}</span>
           </div>
+          <div className="h-4 w-[1px] bg-stone-200 hidden sm:block"></div>
+          <button
+            onClick={() => setIsBackupModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-sans font-medium rounded border border-amber-200/50 transition-colors shadow-sm cursor-pointer"
+            title="Sao lưu toàn bộ dữ liệu hoặc khôi phục từ file lưu"
+          >
+            <Download size={15} className="text-amber-700" />
+            <span>Sao lưu và Phục hồi</span>
+          </button>
         </div>
       </div>
 
