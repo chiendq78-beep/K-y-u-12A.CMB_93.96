@@ -1610,9 +1610,7 @@ export default function App() {
       [id]: isNowFlipped,
     }));
 
-    if (isNowFlipped) {
-      triggerVintageConfetti();
-    }
+    triggerVintageConfetti();
   };
 
   // Flip all cards to front
@@ -2233,35 +2231,48 @@ export default function App() {
 
 
       {/* 2. MAIN HEADER & HERO */}
-      <header className="max-w-5xl mx-auto px-4 pt-12 pb-8 text-center relative">
+      <header className="max-w-5xl mx-auto px-4 pt-3 pb-2 text-center relative">
         <div className="absolute top-2 left-1/2 -translate-x-1/2 opacity-5 pointer-events-none">
           <GraduationCap size={240} className="text-[#5A5A40]" />
         </div>
 
-        {/* Hộp điều khiển hệ thống góc phải */}
-        <div id="system-controls-box" className="absolute top-2 right-4 z-40 flex items-center gap-2">
-          {isAdmin ? (
-            <button
-              onClick={() => {
-                setIsAdmin(false);
-                localStorage.removeItem("ky-yeu-is-admin");
-              }}
-              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              title="Đăng xuất khỏi quyền Thành Viên Lớp"
-            >
-              <Unlock size={12} />
-              <span>Thành Viên (Đang Mở)</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsLoginModalOpen(true)}
-              className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              title="Đăng nhập dành cho thành viên lớp"
-            >
-              <Lock size={12} />
-              <span>Thành Viên Lớp</span>
-            </button>
-          )}
+        {/* Header Top Row - Aligns the Quote and System Controls on the same horizontal level */}
+        <div className="relative z-40 flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
+          <div className="md:w-1/4 hidden md:block" /> {/* Spacer to center the quote horizontally */}
+          
+          <div className="flex justify-center md:w-2/4">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#E8F3E8] text-[#405A40] text-xs font-sans font-semibold uppercase tracking-wider shadow-sm border border-[#C8DBC8]/50 animate-fade-in">
+              <Sparkles size={13} className="text-[#405A40] fill-[#405A40]/30" />
+              Lưu giữ những năm tháng thanh xuân rực rỡ
+            </span>
+          </div>
+          
+          <div className="flex md:w-1/4 justify-center md:justify-end">
+            <div id="system-controls-box" className="flex items-center gap-2">
+              {isAdmin ? (
+                <button
+                  onClick={() => {
+                    setIsAdmin(false);
+                    localStorage.removeItem("ky-yeu-is-admin");
+                  }}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  title="Đăng xuất khỏi quyền Thành Viên Lớp"
+                >
+                  <Unlock size={12} />
+                  <span>Thành Viên (Đang Mở)</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  title="Đăng nhập dành cho thành viên lớp"
+                >
+                  <Lock size={12} />
+                  <span>Thành Viên Lớp</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <motion.div
@@ -2270,11 +2281,6 @@ export default function App() {
           transition={{ duration: 0.6 }}
           className="relative z-10"
         >
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#E8F3E8] text-[#405A40] text-xs font-sans font-semibold uppercase tracking-wider shadow-sm border border-[#C8DBC8]/50 mb-4">
-            <Sparkles size={13} className="text-[#405A40] fill-[#405A40]/30" />
-            Lưu giữ những năm tháng thanh xuân rực rỡ
-          </span>
-
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-light tracking-wider text-[#5A5A40]">
             KỶ YẾU <span className="font-normal border-b-2 border-dashed border-[#E5E0C0] pb-1">12A.CMB - NIÊN KHÓA 93.96</span>
           </h1>
@@ -2282,7 +2288,7 @@ export default function App() {
       </header>
 
       {/* VINTAGE SCRAPBOOK TABS NAVIGATION */}
-      <div className="max-w-5xl mx-auto px-4 mb-10 relative z-30">
+      <div className="max-w-5xl mx-auto px-4 mb-4 relative z-30">
         <div className="flex flex-wrap items-end justify-center gap-2 md:gap-4 border-b border-[#E5E0C0] pb-px">
           {[
             { id: "portrait", label: "📸 ẢNH CHÂN DUNG", desc: "Lật về tuổi thơ", icon: <User size={15} /> },
@@ -2308,7 +2314,7 @@ export default function App() {
                   y: isActive ? -4 : 0,
                   transition: { type: "spring", stiffness: 300, damping: 20 }
                 }}
-                className={`flex-1 min-w-[130px] sm:min-w-[160px] md:max-w-[245px] px-3.5 py-4 text-center border-t border-x rounded-t-xl transition-all duration-300 relative cursor-pointer outline-none select-none ${
+                className={`flex-1 min-w-[130px] sm:min-w-[160px] md:max-w-[245px] px-2.5 py-2 md:py-2.5 text-center border-t border-x rounded-t-xl transition-all duration-300 relative cursor-pointer outline-none select-none ${
                   isActive
                     ? "bg-white border-[#C4BA92] text-[#4A4A2F] font-bold shadow-[0_-6px_20px_rgba(143,143,110,0.12),_0_-1px_3px_rgba(143,143,110,0.04)] z-20"
                     : "bg-[#F5F2E6]/60 border-transparent text-stone-500 hover:bg-white hover:text-[#5A5A40] z-10"
@@ -2566,9 +2572,17 @@ export default function App() {
                               
                               {/* Top Card Accents */}
                               <div className="flex justify-between items-center text-xs text-stone-400 font-sans pb-2">
-                                <span className="px-2 py-0.5 bg-[#F9F7F2] text-[#5A5A40] border border-stone-200/50 rounded text-[10px] uppercase font-bold tracking-wider mb-px">
-                                  {student.group}
-                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCardClick(student.id);
+                                  }}
+                                  className="px-2 py-1 bg-[#F5F2EA] hover:bg-[#EAE4DC] text-[#5A5A40] border border-stone-300 rounded text-[10px] font-sans font-bold flex items-center gap-1 shadow-sm transition-all hover:scale-105 cursor-pointer relative z-30 mb-px animate-fade-in"
+                                  title="Xoay lật ảnh chân dung"
+                                >
+                                  <RefreshCw size={10} className="text-[#5A5A40] shrink-0" />
+                                  <span>Xoay</span>
+                                </button>
                                 
                                 {/* Washi Tape styling at the top of polaroid */}
                                 <div className="w-14 h-4 bg-[#E5E0C0]/60 border border-dashed border-[#5A5A40]/10 shadow-sm rotate-2 -mt-5 absolute left-1/2 -translate-x-1/2 z-10"></div>
@@ -2665,13 +2679,21 @@ export default function App() {
                               {/* Card header */}
                               <div className="relative z-10 flex items-center justify-between pb-2 border-b border-stone-200/40">
                                 <div className="flex items-center gap-1 font-sans">
-                                  <Heart size={13} className="text-rose-500 fill-rose-500" />
-                                  <span className={`text-[10px] font-bold tracking-wider ${theme.text}`}>TỔ LỚP: {student.group}</span>
+                                  <Heart size={13} className="text-rose-500 fill-rose-500 animate-pulse" />
+                                  <span className={`text-[10px] font-bold tracking-wider ${theme.text}`}>LƯU BÚT HỌC TRÒ</span>
                                 </div>
                                 
-                                <span className={`text-[9px] font-sans font-medium px-2 py-0.5 rounded-full ${theme.headerBg} ${theme.text}`}>
-                                  Mảnh Ký Ức
-                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCardClick(student.id);
+                                  }}
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-sans font-semibold flex items-center gap-1 cursor-pointer hover:opacity-90 hover:scale-105 transition-all ${theme.headerBg} ${theme.text} relative z-30`}
+                                  title="Xoay lật lại mặt trước"
+                                >
+                                  <RefreshCw size={8} className="shrink-0" />
+                                  <span>Xoay lại</span>
+                                </button>
                               </div>
 
                               {/* Journal Text Paper Section */}
@@ -3211,23 +3233,23 @@ export default function App() {
               {guestbookEntries.map((item, idx) => {
                 let cardColor = "#FFFDF5"; // default cream
                 let gridColor = "rgba(62, 115, 171, 0.08)"; // classic ink-blue grid
-                let borderClass = "border-amber-200/50";
+                let borderClass = "border-amber-200/40";
                 let tagLabel = "Trang Ô Ly Nắng Ấm";
 
                 if (item.bgStyle === "green") {
                   cardColor = "#F4FAF2"; // mint green
                   gridColor = "rgba(16, 120, 16, 0.07)"; // light green grid
-                  borderClass = "border-emerald-250/50";
+                  borderClass = "border-emerald-200/40";
                   tagLabel = "Trang Ô Ly Thảo Nguyên";
                 } else if (item.bgStyle === "pink") {
                   cardColor = "#FFF5F7"; // soft pink
                   gridColor = "rgba(190, 40, 120, 0.06)"; // soft pink/fuchsia grid
-                  borderClass = "border-rose-250/50";
+                  borderClass = "border-rose-200/40";
                   tagLabel = "Trang Ô Ly Mực Tím";
                 } else if (item.bgStyle === "blue") {
                   cardColor = "#F2F7FD"; // soft blue
                   gridColor = "rgba(50, 120, 200, 0.07)"; // blue grid
-                  borderClass = "border-sky-250/50";
+                  borderClass = "border-sky-200/40";
                   tagLabel = "Trang Ô Ly Tuổi Hồng";
                 }
 
@@ -3382,9 +3404,9 @@ export default function App() {
                   const currentVideo = memoryVideos.find(v => v.id === activeVideoId) || memoryVideos[0];
                   if (!currentVideo) return null;
                   return (
-                    <div className="bg-white border border-stone-202 p-4 rounded-sm shadow-md">
+                    <div className="bg-white border border-stone-200/30 p-4 rounded-sm shadow-md">
                       {/* Video Player Box with retro TV outer feel */}
-                      <div className="aspect-video w-full bg-black rounded-sm overflow-hidden relative shadow-inner border border-stone-900">
+                      <div className="aspect-video w-full bg-black rounded-sm overflow-hidden relative shadow-inner border border-transparent">
                         <iframe
                           className="w-full h-full"
                           src={getEmbedUrl(currentVideo.url)}
@@ -5012,6 +5034,7 @@ export default function App() {
                       ...prev,
                       [zoomedClassmate.student.id]: nextFlippedState
                     }));
+                    triggerVintageConfetti();
                   }}
                   className={`w-full h-full relative preserve-3d flip-card-transition shadow-2xl rounded-sm ${
                     isZoomedFlipped ? "rotate-y-180" : ""
@@ -5022,9 +5045,23 @@ export default function App() {
                   <div className="absolute inset-0 w-full h-full rounded-sm bg-white border border-stone-200 p-4 pb-6 flex flex-col justify-between backface-hidden overflow-hidden shadow-sm">
                     {/* Header */}
                     <div className="flex justify-between items-center text-xs text-stone-200 font-sans pb-1.5 pt-1">
-                      <span className="px-2.5 py-0.5 bg-[#F9F7F2] text-[#5A5A40] border border-stone-250 rounded text-[9px] uppercase font-bold tracking-wider">
-                        {zoomedClassmate.student.group}
-                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nextFlippedState = !isZoomedFlipped;
+                          setIsZoomedFlipped(nextFlippedState);
+                          setFlippedCards((prev) => ({
+                            ...prev,
+                            [zoomedClassmate.student.id]: nextFlippedState
+                          }));
+                          triggerVintageConfetti();
+                        }}
+                        className="px-2.5 py-1 bg-[#F5F2EA] hover:bg-[#EAE4DC] text-[#5A5A40] border border-stone-300 rounded text-[9px] font-sans font-bold flex items-center gap-1 shadow-sm transition-all hover:scale-105 cursor-pointer relative z-30"
+                        title="Xoay lật xem lưu bút"
+                      >
+                        <RefreshCw size={10} className="text-[#5A5A40] shrink-0" />
+                        <span>Xoay</span>
+                      </button>
                       <div className="w-16 h-4 bg-[#E5E0C0]/60 border border-dashed border-[#5A5A40]/10 shadow-sm rotate-1 -mt-6 absolute left-1/2 -translate-x-1/2 z-10" />
                       <span className="text-[#5A5A40] font-sans font-bold text-[9px] flex items-center gap-1 bg-[#E8F3E8] px-2 py-0.5 rounded">
                         🎓 12A
@@ -5134,13 +5171,13 @@ export default function App() {
                     
                     <div className="relative z-10 flex items-center justify-between pb-2 border-b border-stone-200/40">
                       <div className="flex items-center gap-1 font-sans">
-                        <Heart size={13} className="text-rose-500 fill-rose-500" />
+                        <Heart size={13} className="text-rose-500 fill-rose-500 animate-pulse" />
                         <span className={`text-[10px] font-bold tracking-wider ${
                           zoomedClassmate.index % 4 === 0 ? "text-[#5A5A40]" :
                           zoomedClassmate.index % 4 === 1 ? "text-[#405A40]" :
                           zoomedClassmate.index % 4 === 2 ? "text-[#6E4B4B]" :
                           "text-[#3D4F5E]"
-                        }`}>TỔ LỚP: {zoomedClassmate.student.group}</span>
+                        }`}>LƯU BÚT HỌC TRÒ</span>
                       </div>
                       
                       <span className={`text-[9px] font-sans font-medium px-2 py-0.5 rounded-full ${
