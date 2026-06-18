@@ -81,7 +81,7 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
       <div className="relative select-none select-text-none overflow-hidden pb-4">
         
         {/* Desktop and Tablet Dual-Page View */}
-        <div className="hidden md:block relative w-full aspect-[16/10] bg-[#efeade] rounded-lg border-4 border-[#3D3A2C] shadow-2xl overflow-hidden p-6 md:p-8">
+        <div className="hidden md:block relative w-full aspect-[16/10] bg-[#efeade] rounded-lg shadow-2xl overflow-hidden p-6 md:p-8">
           
           {/* Wooden Backdrop Texture inside binder */}
           <div className="absolute inset-0 bg-radial-gradient from-amber-50/10 to-stone-900/15 pointer-events-none z-10" />
@@ -186,7 +186,7 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
                             onClick={handleNext}
                             className="px-4 py-2 bg-[#5A5A40] text-white rounded-sm font-sans font-bold text-xs uppercase tracking-wider shadow hover:bg-[#4A4A30] transition-colors cursor-pointer flex items-center gap-1.5"
                           >
-                            Mở Sách <ChevronRight size={14} />
+                            Mở Album <ChevronRight size={14} />
                           </button>
                         </div>
                       </div>
