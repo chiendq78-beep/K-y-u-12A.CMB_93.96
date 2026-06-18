@@ -2256,19 +2256,19 @@ export default function App() {
                     localStorage.removeItem("ky-yeu-is-admin");
                   }}
                   className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                  title="Đăng xuất khỏi quyền Thành Viên Lớp"
+                  title="Thoát quyền Quản trị"
                 >
-                  <Unlock size={12} />
-                  <span>Thành Viên (Đang Mở)</span>
+                  <Unlock size={15} className="stroke-[2.5]" />
+                  <span>Quản trị (Đang Mở)</span>
                 </button>
               ) : (
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
                   className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-sm text-xs font-sans font-medium flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                  title="Đăng nhập dành cho thành viên lớp"
+                  title="Đăng nhập hệ thống Quản trị"
                 >
                   <Lock size={12} />
-                  <span>Thành Viên Lớp</span>
+                  <span>Quản trị</span>
                 </button>
               )}
             </div>
@@ -4642,16 +4642,16 @@ export default function App() {
                 <div className="w-12 h-12 bg-[#FEF9E7] rounded-full flex items-center justify-center text-[#5A5A40] mb-3 border border-[#E5E0C0]">
                   <Lock size={20} />
                 </div>
-                <h2 className="text-lg font-medium tracking-wide">Xác Minh Thành Viên Lớp</h2>
+                <h2 className="text-lg font-medium tracking-wide">Xác Minh Quyền Quản Trị</h2>
                 <p className="text-xs text-stone-500 mt-1 font-sans font-light">
-                  Đăng nhập để có quyền thêm bạn học, xoá các tấm thẻ, đăng ảnh tập thể và gửi tệp đa phương tiện của lớp 12A.
+                  Đăng nhập quyền Quản trị để có thêm tính năng chỉnh sửa bạn học, xoá các tấm thẻ, đăng ảnh tập thể và gửi tệp đa phương tiện của lớp 12A.
                 </p>
               </div>
 
               <form onSubmit={handleLoginSubmit} className="space-y-4 text-left font-sans font-light">
                 <div>
                   <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
-                    Mật Khẩu Thành Viên
+                    Mật Khẩu Quản Trị
                   </label>
                   <input
                     id="admin-password-input"
