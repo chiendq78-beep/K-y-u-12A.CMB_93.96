@@ -155,11 +155,11 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
                         </span>
                       </div>
 
-                      <div className="text-center mb-12 relative z-10">
-                        <h2 className="text-xl font-serif text-white tracking-wide font-normal mb-1">
+                      <div className="text-center mb-12 relative z-10 w-full max-w-full overflow-hidden">
+                        <h2 className="text-xl font-serif text-white tracking-wide font-normal mb-1 break-words">
                           {albumName}
                         </h2>
-                        <p className="text-[11px] text-[#D5C29A]/80 font-sans italic max-w-xs mx-auto leading-relaxed">
+                        <p className="text-[11px] text-[#D5C29A]/80 font-sans italic max-w-xs mx-auto leading-relaxed break-words whitespace-pre-wrap">
                           {albumDesc || "Nơi lưu giữ ngàn khoảnh khắc đẹp bên chúng bạn và mái trường yêu dấu."}
                         </p>
                       </div>
@@ -231,7 +231,7 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
                                 </div>
                               </div>
                               <div className="mt-3 text-center">
-                                <h4 className="font-serif text-stone-800 font-bold text-xs sm:text-sm tracking-tight mb-1">
+                                <h4 className="font-serif text-stone-800 font-bold text-xs sm:text-sm tracking-tight mb-1 break-words">
                                   {leftPhoto.title}
                                 </h4>
                                 {leftPhoto.date && (
@@ -239,7 +239,7 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
                                     📅 {leftPhoto.date}
                                   </p>
                                 )}
-                                <p className="text-[10px] sm:text-[11px] text-stone-500 font-sans font-light leading-snug line-clamp-2 px-1 text-left">
+                                <p className="text-[10px] sm:text-[11px] text-stone-500 font-sans font-light leading-snug line-clamp-2 px-1 text-left break-words">
                                   {leftPhoto.description}
                                 </p>
                               </div>
@@ -297,7 +297,7 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
                                 </div>
                               </div>
                               <div className="mt-3 text-center">
-                                <h4 className="font-serif text-stone-800 font-bold text-xs sm:text-sm tracking-tight mb-1">
+                                <h4 className="font-serif text-stone-800 font-bold text-xs sm:text-sm tracking-tight mb-1 break-words">
                                   {rightPhoto.title}
                                 </h4>
                                 {rightPhoto.date && (
@@ -305,7 +305,7 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
                                     📅 {rightPhoto.date}
                                   </p>
                                 )}
-                                <p className="text-[10px] sm:text-[11px] text-stone-500 font-sans font-light leading-snug line-clamp-2 px-1 text-left">
+                                <p className="text-[10px] sm:text-[11px] text-stone-500 font-sans font-light leading-snug line-clamp-2 px-1 text-left break-words">
                                   {rightPhoto.description}
                                 </p>
                               </div>
@@ -495,10 +495,10 @@ export const YearbookFlipbook: React.FC<YearbookFlipbookProps> = ({
                           />
                         </div>
                         {/* Content text */}
-                        <div className="mt-3 text-center sm:text-left px-1">
-                          <h4 className="font-serif text-stone-850 font-bold text-sm tracking-tight mb-0.5">{photo.title}</h4>
+                        <div className="mt-3 text-center sm:text-left px-1 w-full max-w-full overflow-hidden">
+                          <h4 className="font-serif text-stone-850 font-bold text-sm tracking-tight mb-0.5 break-words">{photo.title}</h4>
                           {photo.date && <p className="text-[9px] uppercase tracking-wide font-sans font-bold text-[#5A5A40]">📅 {photo.date}</p>}
-                          <p className="text-[11px] text-stone-500 font-sans font-light leading-relaxed text-left text-ellipsis overflow-hidden mt-1 line-clamp-3">
+                          <p className="text-[11px] text-stone-500 font-sans font-light leading-relaxed text-left text-ellipsis overflow-hidden mt-1 line-clamp-3 break-words">
                             {photo.description}
                           </p>
                         </div>

@@ -2809,12 +2809,12 @@ export default function App() {
 
           {/* Description of active album and Delete button option */}
           {selectedAlbumId !== "all" && (
-            <div className="bg-[#FAF9F5] p-4 rounded-sm border-l-4 border-[#5A5A40] shadow-sm mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex-1 w-full">
-                <h3 className="text-xs font-semibold text-stone-800 uppercase tracking-wide">
+            <div className="bg-[#FAF9F5] p-4 rounded-sm border-l-4 border-[#5A5A40] shadow-sm mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 max-w-full overflow-hidden">
+              <div className="flex-1 w-full min-w-0 overflow-hidden">
+                <h3 className="text-xs font-semibold text-stone-800 uppercase tracking-wide break-words">
                   🏷️ Album: {collectiveAlbums.find(a => a.id === selectedAlbumId)?.name}
                 </h3>
-                <p className="text-[11px] text-stone-500 mt-1 italic font-sans">
+                <p className="text-[11px] text-stone-500 mt-1 italic font-sans break-words whitespace-pre-wrap">
                   {collectiveAlbums.find(a => a.id === selectedAlbumId)?.description || "Bộ sưu tập những hình ảnh lưu giữ kỷ niệm tuyệt vời."}
                 </p>
 
