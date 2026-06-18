@@ -2762,7 +2762,7 @@ export default function App() {
             <div className="flex flex-wrap gap-2 self-start sm:self-center shrink-0">
               <button
                 onClick={() => isAdmin ? setIsAlbumFormOpen(true) : setIsLoginModalOpen(true)}
-                className="px-4 py-2.5 text-xs font-sans font-bold text-[#5A5A40] bg-[#FAF9F5] hover:bg-[#F2EFE4] hover:text-[#4A4A30] border border-[#5A5A40]/60 rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                className="px-4 py-2.5 text-xs font-sans font-bold text-[#5A5A40] bg-[#FAF9F5] hover:bg-[#F2EFE4] hover:text-[#4A4A30] border border-[#E5E0C0] rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 {isAdmin ? <FolderPlus size={15} /> : <Lock size={12} />}
                 Tạo Album
@@ -2785,7 +2785,7 @@ export default function App() {
               className={`px-3 py-1.5 text-xs font-sans rounded-sm transition-all cursor-pointer border ${
                 selectedAlbumId === "all"
                   ? "bg-[#5A5A40] text-white border-[#5A5A40] font-semibold shadow-sm"
-                  : "bg-white text-stone-600 border-stone-250/70 hover:bg-[#F5F2E6] hover:text-[#5A5A40]"
+                  : "bg-white text-stone-600 border-[#E5E0C0]/60 hover:bg-[#F5F2E6] hover:text-[#5A5A40]"
               }`}
             >
               📚 Tất cả
@@ -2797,7 +2797,7 @@ export default function App() {
                 className={`px-3 py-1.5 text-xs font-sans rounded-sm transition-all cursor-pointer border flex items-center gap-1.5 ${
                   selectedAlbumId === album.id
                     ? "bg-[#5A5A40] text-white border-[#5A5A40] font-semibold shadow-sm"
-                    : "bg-white text-stone-600 border-stone-250/70 hover:bg-[#F5F2E6] hover:text-[#5A5A40]"
+                    : "bg-white text-stone-600 border-[#E5E0C0]/60 hover:bg-[#F5F2E6] hover:text-[#5A5A40]"
                 }`}
                 title={album.description}
               >
@@ -2821,7 +2821,7 @@ export default function App() {
                 {/* Choose Layout Mode */}
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-[10px] font-sans font-bold text-stone-500 uppercase tracking-wider">Chế độ xem:</span>
-                  <div className="inline-flex rounded-sm bg-stone-200/50 p-0.5 border border-stone-250">
+                  <div className="inline-flex rounded-sm bg-stone-200/50 p-0.5 border border-stone-200">
                     <button
                       onClick={() => setGalleryViewMode("book")}
                       className={`px-3 py-1 text-[9px] uppercase tracking-wide font-sans font-bold rounded-xs transition-all cursor-pointer ${
