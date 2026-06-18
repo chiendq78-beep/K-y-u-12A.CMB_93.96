@@ -1560,6 +1560,89 @@ export default function App() {
     { name: "Nụ cười tỏa nắng", url: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=600" },
   ];
 
+  // Synchronize browser history stack for active overlays (e.g. mobile swipe back gesture support)
+  const isAnyModalOpen = !!(
+    lightboxPhoto ||
+    zoomedClassmate ||
+    isAddFormOpen ||
+    isColFormOpen ||
+    isMemFormOpen ||
+    isVidFormOpen ||
+    isGuestbookFormOpen ||
+    isAlbumFormOpen ||
+    isLoginModalOpen ||
+    isBackupModalOpen ||
+    (selectedAlbumId !== "all")
+  );
+
+  const modalHistoryRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      if (!modalHistoryRef.current) {
+        window.history.pushState({ modalOpen: true }, "");
+        modalHistoryRef.current = true;
+      }
+    } else {
+      if (modalHistoryRef.current) {
+        modalHistoryRef.current = false;
+        if (window.history.state?.modalOpen) {
+          window.history.back();
+        }
+      }
+    }
+  }, [isAnyModalOpen]);
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (
+        lightboxPhoto ||
+        zoomedClassmate ||
+        isAddFormOpen ||
+        isColFormOpen ||
+        isMemFormOpen ||
+        isVidFormOpen ||
+        isGuestbookFormOpen ||
+        isAlbumFormOpen ||
+        isLoginModalOpen ||
+        isBackupModalOpen ||
+        (selectedAlbumId !== "all")
+      ) {
+        // Prevent default browser movement / intercept the back press to close the currently active overlays
+        handleCloseClassmateForm();
+        handleCloseColForm();
+        handleCloseMemForm();
+        handleCloseVidForm();
+        handleCloseGuestbookForm();
+        setIsAlbumFormOpen(false);
+        setIsLoginModalOpen(false);
+        setIsBackupModalOpen(false);
+        setLightboxPhoto(null);
+        setZoomedClassmate(null);
+        setSelectedAlbumId("all");
+        
+        modalHistoryRef.current = false;
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [
+    lightboxPhoto,
+    zoomedClassmate,
+    isAddFormOpen,
+    isColFormOpen,
+    isMemFormOpen,
+    isVidFormOpen,
+    isGuestbookFormOpen,
+    isAlbumFormOpen,
+    isLoginModalOpen,
+    isBackupModalOpen,
+    selectedAlbumId
+  ]);
+
   // Trigger vintage color palette confetti
   const triggerVintageConfetti = () => {
     const activeThemes = ["#5A5A40", "#C8DBC8", "#ECD9D9", "#E5E0C0", "#405A40", "#6E4B4B", "#D6E2ED"];
