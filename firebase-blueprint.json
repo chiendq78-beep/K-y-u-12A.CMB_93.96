@@ -37,6 +37,10 @@
           "type": "string",
           "description": "A funny dialogue or conversation piece"
         },
+        "birthDate": {
+          "type": "string",
+          "description": "Student date of birth"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",

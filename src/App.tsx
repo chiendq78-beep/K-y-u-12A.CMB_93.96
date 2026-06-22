@@ -481,7 +481,6 @@ export default function App() {
   const [newGuestbookContent, setNewGuestbookContent] = useState("");
   const [newGuestbookDate, setNewGuestbookDate] = useState("");
   const [newGuestbookBgStyle, setNewGuestbookBgStyle] = useState<string>("yellow");
-  const [guestbookDateMode, setGuestbookDateMode] = useState<"calendar" | "custom">("calendar");
 
   // Album States
   const [collectiveAlbums, setCollectiveAlbums] = useState<CollectiveAlbum[]>([]);
@@ -1059,6 +1058,7 @@ export default function App() {
     setEditingClassmateId(null);
     setNewName("");
     setNewNickname("");
+    setNewBirthDate("");
     setNewRole("");
     setNewGroup("Tổ 1");
     setNewQuote("");
@@ -1078,7 +1078,6 @@ export default function App() {
     setNewColDate("");
     setNewColAlbumId("");
     setDirectUploadAlbumId(null);
-    setColDateMode("calendar");
   };
 
   // Helper to load image via canvas fallback if raw fetch fails under CORS blocks
@@ -1314,7 +1313,6 @@ export default function App() {
     setNewGuestbookContent("");
     setNewGuestbookDate("");
     setNewGuestbookBgStyle("yellow");
-    setGuestbookDateMode("calendar");
   };
 
   // Submit new Guestbook Entry / Update existing
@@ -1361,18 +1359,6 @@ export default function App() {
     setNewGuestbookContent(entry.content);
     const origDate = entry.date || "";
     setNewGuestbookDate(origDate);
-    
-    // Automatically determine appropriate mode based on loaded date
-    if (origDate) {
-      const iso = vietnameseToIsoDate(origDate);
-      if (iso) {
-        setGuestbookDateMode("calendar");
-      } else {
-        setGuestbookDateMode("custom");
-      }
-    } else {
-      setGuestbookDateMode("calendar");
-    }
 
     setNewGuestbookBgStyle(entry.bgStyle || "yellow");
     setIsGuestbookFormOpen(true);
@@ -1395,6 +1381,8 @@ export default function App() {
     setEditingClassmateId(student.id);
     setNewName(student.name);
     setNewNickname(student.nickname || "");
+    const birthDateOrig = student.birthDate || "";
+    setNewBirthDate(birthDateOrig);
     setNewRole(student.role);
     setNewGroup(student.group);
     setNewQuote(student.quote);
@@ -1416,18 +1404,6 @@ export default function App() {
     setNewColDesc(photo.description);
     const origDate = photo.date || "";
     setNewColDate(origDate);
-    
-    // Automatically determine appropriate mode based on loaded date
-    if (origDate) {
-      const iso = vietnameseToIsoDate(origDate);
-      if (iso) {
-        setColDateMode("calendar");
-      } else {
-        setColDateMode("custom");
-      }
-    } else {
-      setColDateMode("calendar");
-    }
 
     setNewColAlbumId(photo.albumId || "");
     if (photo.url.startsWith("data:")) {
@@ -1474,7 +1450,6 @@ export default function App() {
   const [newColUrl, setNewColUrl] = useState("");
   const [newColUpload, setNewColUpload] = useState("");
   const [newColDate, setNewColDate] = useState("");
-  const [colDateMode, setColDateMode] = useState<"calendar" | "custom">("calendar");
 
   const uploadColRef = useRef<HTMLInputElement>(null);
 
@@ -1539,6 +1514,7 @@ export default function App() {
   // Form student details
   const [newName, setNewName] = useState("");
   const [newNickname, setNewNickname] = useState("");
+  const [newBirthDate, setNewBirthDate] = useState("");
   const [newRole, setNewRole] = useState("");
   const [newGroup, setNewGroup] = useState("Tổ 1");
   const [newQuote, setNewQuote] = useState("");
@@ -1843,7 +1819,8 @@ export default function App() {
       group: newGroup,
       avatarUrl: finalAvatarUrl,
       quote: newQuote.trim(),
-      ...(newFunnyChat.trim() ? { funnyChat: newFunnyChat.trim() } : {})
+      ...(newFunnyChat.trim() ? { funnyChat: newFunnyChat.trim() } : {}),
+      ...(newBirthDate.trim() ? { birthDate: newBirthDate.trim() } : {})
     };
 
     try {
@@ -2715,6 +2692,11 @@ export default function App() {
                                 <p className="text-[9px] sm:text-[11px] font-sans text-stone-500 tracking-wider uppercase mt-0.5 sm:mt-1">
                                   {student.role}
                                 </p>
+                                {student.birthDate && (
+                                  <p className="text-[9px] sm:text-[10px] font-sans text-stone-400 mt-0.5">
+                                    🎂 {student.birthDate}
+                                  </p>
+                                )}
                               </div>
 
                               {/* Save photo option */}
@@ -3627,8 +3609,8 @@ export default function App() {
 
               <form onSubmit={handleAddSubmit} className="space-y-5 font-sans font-light">
                 
-                {/* Name & Nickname row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Name, Birthdate & Nickname row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
                       Họ và Tên <span className="text-rose-500">*</span>
@@ -3641,6 +3623,27 @@ export default function App() {
                       onChange={(e) => setNewName(e.target.value)}
                       className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
+                      Ngày Tháng Năm Sinh
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="date"
+                        value={vietnameseToIsoDate(newBirthDate)}
+                        onChange={(e) => {
+                          const isoVal = e.target.value;
+                          setNewBirthDate(isoToVietnameseDate(isoVal));
+                        }}
+                        className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all font-sans cursor-pointer"
+                      />
+                      {newBirthDate && (
+                        <div className="absolute right-10 pointer-events-none bg-stone-100 border border-stone-200 rounded-sm px-2 py-0.5 text-[10px] text-stone-600 font-sans font-medium hidden xs:block">
+                          {newBirthDate}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
@@ -3959,70 +3962,25 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide">
-                        Thời gian / Ngày kỷ niệm
-                      </label>
-                      <div className="flex gap-1 bg-stone-200/50 p-0.5 rounded-sm select-none">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setColDateMode("calendar");
-                            const iso = vietnameseToIsoDate(newColDate);
-                            if (iso) {
-                              setNewColDate(isoToVietnameseDate(iso));
-                            } else {
-                              setNewColDate("");
-                            }
-                          }}
-                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
-                            colDateMode === "calendar"
-                              ? "bg-white text-[#5A5A40] shadow-xs"
-                              : "text-stone-500 hover:text-stone-700"
-                          }`}
-                        >
-                          📅 Lịch
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setColDateMode("custom")}
-                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
-                            colDateMode === "custom"
-                              ? "bg-white text-[#5A5A40] shadow-xs"
-                              : "text-stone-500 hover:text-stone-700"
-                          }`}
-                        >
-                          ✍️ Nhập tay
-                        </button>
-                      </div>
-                    </div>
-
-                    {colDateMode === "calendar" ? (
-                      <div className="relative flex items-center">
-                        <input
-                          type="date"
-                          value={vietnameseToIsoDate(newColDate)}
-                          onChange={(e) => {
-                            const isoVal = e.target.value;
-                            setNewColDate(isoToVietnameseDate(isoVal));
-                          }}
-                          className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all font-sans cursor-pointer"
-                        />
-                        {newColDate && (
-                          <div className="absolute right-10 pointer-events-none bg-stone-100 border border-stone-200 rounded-sm px-2 py-0.5 text-[10px] text-stone-600 font-sans font-medium hidden xs:block">
-                            {newColDate}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
+                    <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
+                      Thời gian / Ngày kỷ niệm
+                    </label>
+                    <div className="relative flex items-center">
                       <input
-                        type="text"
-                        placeholder="VD: Mùa hè 1996 hoặc Tháng 5/1996"
-                        value={newColDate}
-                        onChange={(e) => setNewColDate(e.target.value)}
-                        className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
+                        type="date"
+                        value={vietnameseToIsoDate(newColDate)}
+                        onChange={(e) => {
+                          const isoVal = e.target.value;
+                          setNewColDate(isoToVietnameseDate(isoVal));
+                        }}
+                        className="w-full px-3.5 py-2 bg-white border border-stone-250 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all font-sans cursor-pointer"
                       />
-                    )}
+                      {newColDate && (
+                        <div className="absolute right-10 pointer-events-none bg-stone-100 border border-stone-200 rounded-sm px-2 py-0.5 text-[10px] text-stone-600 font-sans font-medium hidden xs:block">
+                          {newColDate}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
@@ -4537,70 +4495,25 @@ export default function App() {
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide">
-                        Thời Điểm / Ngày Ký <span className="text-stone-400">(Tùy chọn)</span>
-                      </label>
-                      <div className="flex gap-1 bg-stone-200/50 p-0.5 rounded-sm select-none">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGuestbookDateMode("calendar");
-                            const iso = vietnameseToIsoDate(newGuestbookDate);
-                            if (iso) {
-                              setNewGuestbookDate(isoToVietnameseDate(iso));
-                            } else {
-                              setNewGuestbookDate("");
-                            }
-                          }}
-                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
-                            guestbookDateMode === "calendar"
-                              ? "bg-white text-[#5A5A40] shadow-xs"
-                              : "text-stone-500 hover:text-stone-700"
-                          }`}
-                        >
-                          📅 Lịch
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setGuestbookDateMode("custom")}
-                          className={`px-2 py-0.5 text-[9px] uppercase font-sans font-bold rounded-xs transition-all cursor-pointer ${
-                            guestbookDateMode === "custom"
-                              ? "bg-white text-[#5A5A40] shadow-xs"
-                              : "text-stone-500 hover:text-stone-700"
-                          }`}
-                        >
-                          ✍️ Nhập tay
-                        </button>
-                      </div>
-                    </div>
-
-                    {guestbookDateMode === "calendar" ? (
-                      <div className="relative flex items-center">
-                        <input
-                          type="date"
-                          value={vietnameseToIsoDate(newGuestbookDate)}
-                          onChange={(e) => {
-                            const isoVal = e.target.value;
-                            setNewGuestbookDate(isoToVietnameseDate(isoVal));
-                          }}
-                          className="w-full px-3.5 py-2 bg-white border border-[#DCD5B0]/80 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all font-sans cursor-pointer"
-                        />
-                        {newGuestbookDate && (
-                          <div className="absolute right-10 pointer-events-none bg-stone-100 border border-stone-200 rounded-sm px-2 py-0.5 text-[10px] text-stone-600 font-sans font-medium hidden xs:block">
-                            {newGuestbookDate}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
+                    <label className="block text-xs font-bold text-[#5A5A40] uppercase tracking-wide mb-1.5">
+                      Thời Điểm / Ngày Ký <span className="text-stone-400">(Tùy chọn)</span>
+                    </label>
+                    <div className="relative flex items-center">
                       <input
-                        type="text"
-                        placeholder={`VD: ${new Date().toLocaleDateString("vi-VN")}`}
-                        value={newGuestbookDate}
-                        onChange={(e) => setNewGuestbookDate(e.target.value)}
-                        className="w-full px-3.5 py-2 bg-white border border-[#DCD5B0]/80 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all"
+                        type="date"
+                        value={vietnameseToIsoDate(newGuestbookDate)}
+                        onChange={(e) => {
+                          const isoVal = e.target.value;
+                          setNewGuestbookDate(isoToVietnameseDate(isoVal));
+                        }}
+                        className="w-full px-3.5 py-2 bg-white border border-[#DCD5B0]/80 rounded-sm text-sm focus:ring-1 focus:ring-[#5A5A40] focus:border-[#5A5A40] focus:outline-none transition-all font-sans cursor-pointer"
                       />
-                    )}
+                      {newGuestbookDate && (
+                        <div className="absolute right-10 pointer-events-none bg-stone-100 border border-stone-200 rounded-sm px-2 py-0.5 text-[10px] text-stone-600 font-sans font-medium hidden xs:block">
+                          {newGuestbookDate}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -5196,6 +5109,11 @@ export default function App() {
                       <p className="text-[10px] font-sans text-stone-500 tracking-wider uppercase mt-1">
                         {zoomedClassmate.student.role}
                       </p>
+                      {zoomedClassmate.student.birthDate && (
+                        <p className="text-[10px] font-sans text-stone-400 mt-0.5">
+                          🎂 Ngày sinh: {zoomedClassmate.student.birthDate}
+                        </p>
+                      )}
                     </div>
 
                     {/* Save photo option */}
