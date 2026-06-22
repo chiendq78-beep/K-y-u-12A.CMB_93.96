@@ -260,6 +260,20 @@ const isoToVietnameseDate = (str: string): string => {
   return str;
 };
 
+const removeVietnameseTones = (str: string): string => {
+  if (!str) return "";
+  let result = str.toLowerCase();
+  result = result.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+  result = result.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+  result = result.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+  result = result.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+  result = result.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+  result = result.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+  result = result.replace(/đ/g, "d");
+  result = result.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return result;
+};
+
 
 // Safe wrapper around localStorage setItem to catch any QuotaExceededError or security restrictions
 class IndexedDBStorage {
@@ -2210,11 +2224,36 @@ export default function App() {
 
   // Filter & Search Logic
   const filteredClassmates = classmates.filter((item) => {
+    if (!searchQuery) {
+      if (selectedGroup === "Tất Cả") {
+        return true;
+      }
+      return item.group === selectedGroup;
+    }
+
+    const queryLower = searchQuery.toLowerCase();
+    const queryNormalized = removeVietnameseTones(queryLower);
+
+    const nameLower = item.name.toLowerCase();
+    const nicknameLower = (item.nickname || "").toLowerCase();
+    const roleLower = item.role.toLowerCase();
+    const quoteLower = item.quote.toLowerCase();
+    const groupLower = item.group.toLowerCase();
+    const birthDateStr = (item.birthDate || "").toLowerCase();
+
     const matchesSearch = 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (item.nickname && item.nickname.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      item.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.quote.toLowerCase().includes(searchQuery.toLowerCase());
+      nameLower.includes(queryLower) || 
+      removeVietnameseTones(nameLower).includes(queryNormalized) ||
+      nicknameLower.includes(queryLower) || 
+      removeVietnameseTones(nicknameLower).includes(queryNormalized) ||
+      roleLower.includes(queryLower) || 
+      removeVietnameseTones(roleLower).includes(queryNormalized) ||
+      quoteLower.includes(queryLower) || 
+      removeVietnameseTones(quoteLower).includes(queryNormalized) ||
+      groupLower.includes(queryLower) || 
+      removeVietnameseTones(groupLower).includes(queryNormalized) ||
+      birthDateStr.includes(queryLower) || 
+      removeVietnameseTones(birthDateStr).includes(queryNormalized);
     
     if (selectedGroup === "Tất Cả") {
       return matchesSearch;
