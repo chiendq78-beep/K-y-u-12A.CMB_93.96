@@ -381,6 +381,12 @@ const DEFAULT_ALBUMS = [
   { id: "alb-3", name: "🤪 Hậu trường tinh nghịch", description: "Những khoảnh khắc dìm hàng nhắng nhít khó quên." }
 ];
 
+const DEFAULT_AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23F4F1EA'/><circle cx='50' cy='42' r='18' fill='%23A0A080'/><path d='M20 80c0-12 15-18 30-18s30 6 30 18v5H20v-5z' fill='%23A0A080'/></svg>";
+
+const DEFAULT_GROUP_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60'><rect width='100' height='60' fill='%23F4F1EA'/><circle cx='35' cy='25' r='10' fill='%23A0A080'/><path d='M15 50c0-8 10-12 20-12s20 4 20 12v3H15v-3z' fill='%23A0A080'/><circle cx='65' cy='25' r='10' fill='%23909070'/><path d='M45 50c0-8 10-12 20-12s20 4 20 12v3H45v-3z' fill='%23909070'/></svg>";
+
+const DEFAULT_MEMORY_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23F4F1EA'/><path d='M30 20h40v60H30z' fill='none' stroke='%23A0A080' stroke-width='4'/><path d='M35 30h30M35 40h30M35 50h20' stroke='%23A0A080' stroke-width='2' stroke-linecap='round'/></svg>";
+
 const DEFAULT_COLL_PHOTOS = [
   {
     id: "col-1",
@@ -752,18 +758,6 @@ export default function App() {
         }
       }, 3500);
 
-      // Direct optimization check: if database has already been seeded on this client, do NOT block on sequential checks!
-      const dbSuffix = databaseId || "default";
-      const seedKey = `ky-yeu-db-seeded-${dbSuffix}`;
-      const isSeeded = localStorage.getItem(seedKey) === "true";
-      if (!isSeeded) {
-        try {
-          await seedDatabase();
-          localStorage.setItem(seedKey, "true");
-        } catch (err) {
-          handleQuotaError(err);
-        }
-      }
       if (!active) return;
 
       let classmatesLoaded = false;
@@ -791,19 +785,9 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() } as Classmate);
         });
         
-        if (list.length > 0) {
-          list.sort((a, b) => a.name.localeCompare(b.name));
-          setClassmates(list);
-          safeSaveToLocalStorage(`local-db-classmates-${dbSuffix2}`, list);
-        } else {
-          // If Firestore is empty/reset, load local or default fallback so screen doesn't clear!
-          const local = getLocalData(`local-db-classmates-${dbSuffix2}`);
-          if (local) {
-            setClassmates(JSON.parse(local));
-          } else {
-            setClassmates(DEFAULT_CLASSMATES);
-          }
-        }
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        setClassmates(list);
+        safeSaveToLocalStorage(`local-db-classmates-${dbSuffix2}`, list);
 
         classmatesLoaded = true;
         checkAllLoaded();
@@ -816,7 +800,7 @@ export default function App() {
         if (local) {
           setClassmates(JSON.parse(local));
         } else {
-          setClassmates(DEFAULT_CLASSMATES);
+          setClassmates([]);
         }
 
         classmatesLoaded = true;
@@ -830,17 +814,8 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() });
         });
         
-        if (list.length > 0) {
-          setCollectivePhotos(list);
-          safeSaveToLocalStorage(`local-db-collectivePhotos-${dbSuffix2}`, list);
-        } else {
-          const local = getLocalData(`local-db-collectivePhotos-${dbSuffix2}`);
-          if (local) {
-            setCollectivePhotos(JSON.parse(local));
-          } else {
-            setCollectivePhotos(DEFAULT_COLL_PHOTOS);
-          }
-        }
+        setCollectivePhotos(list);
+        safeSaveToLocalStorage(`local-db-collectivePhotos-${dbSuffix2}`, list);
 
         colLoaded = true;
         checkAllLoaded();
@@ -852,7 +827,7 @@ export default function App() {
         if (local) {
           setCollectivePhotos(JSON.parse(local));
         } else {
-          setCollectivePhotos(DEFAULT_COLL_PHOTOS);
+          setCollectivePhotos([]);
         }
 
         colLoaded = true;
@@ -866,17 +841,8 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() });
         });
         
-        if (list.length > 0) {
-          setMemoryPhotos(list);
-          safeSaveToLocalStorage(`local-db-memoryPhotos-${dbSuffix2}`, list);
-        } else {
-          const local = getLocalData(`local-db-memoryPhotos-${dbSuffix2}`);
-          if (local) {
-            setMemoryPhotos(JSON.parse(local));
-          } else {
-            setMemoryPhotos(DEFAULT_MEM_PHOTOS);
-          }
-        }
+        setMemoryPhotos(list);
+        safeSaveToLocalStorage(`local-db-memoryPhotos-${dbSuffix2}`, list);
 
         memLoaded = true;
         checkAllLoaded();
@@ -888,7 +854,7 @@ export default function App() {
         if (local) {
           setMemoryPhotos(JSON.parse(local));
         } else {
-          setMemoryPhotos(DEFAULT_MEM_PHOTOS);
+          setMemoryPhotos([]);
         }
 
         memLoaded = true;
@@ -902,17 +868,8 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() });
         });
         
-        if (list.length > 0) {
-          setMemoryVideos(list);
-          safeSaveToLocalStorage(`local-db-memoryVideos-${dbSuffix2}`, list);
-        } else {
-          const local = getLocalData(`local-db-memoryVideos-${dbSuffix2}`);
-          if (local) {
-            setMemoryVideos(JSON.parse(local));
-          } else {
-            setMemoryVideos(DEFAULT_MEM_VIDEOS);
-          }
-        }
+        setMemoryVideos(list);
+        safeSaveToLocalStorage(`local-db-memoryVideos-${dbSuffix2}`, list);
 
         vidLoaded = true;
         checkAllLoaded();
@@ -924,7 +881,7 @@ export default function App() {
         if (local) {
           setMemoryVideos(JSON.parse(local));
         } else {
-          setMemoryVideos(DEFAULT_MEM_VIDEOS);
+          setMemoryVideos([]);
         }
 
         vidLoaded = true;
@@ -938,17 +895,8 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() } as CollectiveAlbum);
         });
         
-        if (list.length > 0) {
-          setCollectiveAlbums(list);
-          safeSaveToLocalStorage(`local-db-collectiveAlbums-${dbSuffix2}`, list);
-        } else {
-          const local = getLocalData(`local-db-collectiveAlbums-${dbSuffix2}`);
-          if (local) {
-            setCollectiveAlbums(JSON.parse(local));
-          } else {
-            setCollectiveAlbums(DEFAULT_ALBUMS);
-          }
-        }
+        setCollectiveAlbums(list);
+        safeSaveToLocalStorage(`local-db-collectiveAlbums-${dbSuffix2}`, list);
 
         albumsLoaded = true;
         checkAllLoaded();
@@ -960,7 +908,7 @@ export default function App() {
         if (local) {
           setCollectiveAlbums(JSON.parse(local));
         } else {
-          setCollectiveAlbums(DEFAULT_ALBUMS);
+          setCollectiveAlbums([]);
         }
 
         albumsLoaded = true;
@@ -974,29 +922,13 @@ export default function App() {
           list.push({ id: doc.id, ...doc.data() });
         });
         
-        if (list.length > 0) {
-          // Sort guestbook entries: newest first
-          list.sort((a, b) => {
-            const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            return tB - tA;
-          });
-          setGuestbookEntries(list);
-          safeSaveToLocalStorage(`local-db-guestbook-${dbSuffix2}`, list);
-        } else {
-          const local = getLocalData(`local-db-guestbook-${dbSuffix2}`);
-          if (local) {
-            const parsed = JSON.parse(local);
-            parsed.sort((a: any, b: any) => {
-              const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-              const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-              return tB - tA;
-            });
-            setGuestbookEntries(parsed);
-          } else {
-            setGuestbookEntries(DEFAULT_GUESTBOOK);
-          }
-        }
+        list.sort((a, b) => {
+          const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return tB - tA;
+        });
+        setGuestbookEntries(list);
+        safeSaveToLocalStorage(`local-db-guestbook-${dbSuffix2}`, list);
 
         guestbookLoaded = true;
         checkAllLoaded();
@@ -1014,7 +946,7 @@ export default function App() {
           });
           setGuestbookEntries(parsed);
         } else {
-          setGuestbookEntries(DEFAULT_GUESTBOOK);
+          setGuestbookEntries([]);
         }
 
         guestbookLoaded = true;
@@ -1077,6 +1009,8 @@ export default function App() {
     setNewGroup("Tổ 1");
     setNewQuote("");
     setNewFunnyChat("");
+    setImageUrlOption("upload");
+    setPresetImage(DEFAULT_AVATAR_PLACEHOLDER);
     setCustomUrl("");
     setUploadedBase64("");
   };
@@ -1087,6 +1021,8 @@ export default function App() {
     setEditingColPhotoId(null);
     setNewColTitle("");
     setNewColDesc("");
+    setNewColUrlChoice("upload");
+    setNewColPreset(DEFAULT_GROUP_PLACEHOLDER);
     setNewColUrl("");
     setNewColUpload("");
     setNewColDate("");
@@ -1405,8 +1341,14 @@ export default function App() {
       setImageUrlOption("upload");
       setUploadedBase64(student.avatarUrl);
     } else {
-      setImageUrlOption("url");
-      setCustomUrl(student.avatarUrl);
+      const isPreset = PRESET_PORTRAITS.some(p => p.url === student.avatarUrl);
+      if (isPreset) {
+        setImageUrlOption("preset");
+        setPresetImage(student.avatarUrl);
+      } else {
+        setImageUrlOption("url");
+        setCustomUrl(student.avatarUrl);
+      }
     }
     setIsAddFormOpen(true);
   };
@@ -1424,8 +1366,14 @@ export default function App() {
       setNewColUrlChoice("upload");
       setNewColUpload(photo.url);
     } else {
-      setNewColUrlChoice("url");
-      setNewColUrl(photo.url);
+      const isPreset = PRESET_COLLECTIVES.some(p => p.url === photo.url);
+      if (isPreset) {
+        setNewColUrlChoice("preset");
+        setNewColPreset(photo.url);
+      } else {
+        setNewColUrlChoice("url");
+        setNewColUrl(photo.url);
+      }
     }
     setIsColFormOpen(true);
   };
@@ -1439,8 +1387,14 @@ export default function App() {
       setNewMemUrlChoice("upload");
       setNewMemUpload(item.url);
     } else {
-      setNewMemUrlChoice("url");
-      setNewMemUrl(item.url);
+      const isPreset = PRESET_MEMORIES.some(p => p.url === item.url);
+      if (isPreset) {
+        setNewMemUrlChoice("preset");
+        setNewMemPreset(item.url);
+      } else {
+        setNewMemUrlChoice("url");
+        setNewMemUrl(item.url);
+      }
     }
     setIsMemFormOpen(true);
   };
@@ -1460,7 +1414,7 @@ export default function App() {
   const [newColTitle, setNewColTitle] = useState("");
   const [newColDesc, setNewColDesc] = useState("");
   const [newColUrlChoice, setNewColUrlChoice] = useState("upload"); // 'preset' or 'upload' or 'url'
-  const [newColPreset, setNewColPreset] = useState("https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=1200");
+  const [newColPreset, setNewColPreset] = useState(DEFAULT_GROUP_PLACEHOLDER);
   const [newColUrl, setNewColUrl] = useState("");
   const [newColUpload, setNewColUpload] = useState("");
   const [newColDate, setNewColDate] = useState("");
@@ -1471,8 +1425,8 @@ export default function App() {
   const [isMemFormOpen, setIsMemFormOpen] = useState(false);
   const [newMemTitle, setNewMemTitle] = useState("");
   const [newMemDesc, setNewMemDesc] = useState("");
-  const [newMemUrlChoice, setNewMemUrlChoice] = useState("preset"); // 'preset' or 'upload' or 'url'
-  const [newMemPreset, setNewMemPreset] = useState("https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=600");
+  const [newMemUrlChoice, setNewMemUrlChoice] = useState("upload"); // 'preset' or 'upload' or 'url'
+  const [newMemPreset, setNewMemPreset] = useState(DEFAULT_MEMORY_PLACEHOLDER);
   const [newMemUrl, setNewMemUrl] = useState("");
   const [newMemUpload, setNewMemUpload] = useState("");
 
@@ -1488,19 +1442,11 @@ export default function App() {
 
   // Presets
   const PRESET_COLLECTIVES = [
-    { name: "Cùng Thầy Cô Giáo", url: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=1200" },
-    { name: "Hội Trại Buổi Tối", url: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=1200" },
-    { name: "Thầy Trò Trò Chuyện", url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1200" },
-    { name: "Dưới Hiên Lớp Cổ", url: "https://images.unsplash.com/photo-1525921429624-479b6c29454f?auto=format&fit=crop&q=80&w=1200" },
-    { name: "Sân Trường Nắng Vàng", url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=1200" },
+    { name: "Ảnh tập thể lớp 12A", url: DEFAULT_GROUP_PLACEHOLDER },
   ];
 
   const PRESET_MEMORIES = [
-    { name: "Lưu bút thời hoa đỏ", url: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=600" },
-    { name: "Cassette nhạc Trịnh", url: "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=600" },
-    { name: "Cánh phượng ép sách", url: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80&w=600" },
-    { name: "Xe đạp Phượng Hoàng", url: "https://images.unsplash.com/photo-1519003722824-194d4455a60c?auto=format&fit=crop&q=80&w=600" },
-    { name: "Bàn học đen xước quen thuộc", url: "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=80&w=600" },
+    { name: "Kỷ vật lớp học", url: DEFAULT_MEMORY_PLACEHOLDER },
   ];
 
   // Helper to parse YouTube URLs cleanly
@@ -1534,7 +1480,7 @@ export default function App() {
   const [newQuote, setNewQuote] = useState("");
   const [newFunnyChat, setNewFunnyChat] = useState("");
   const [imageUrlOption, setImageUrlOption] = useState("upload"); // 'preset' or 'url' or 'upload'
-  const [presetImage, setPresetImage] = useState("https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600");
+  const [presetImage, setPresetImage] = useState(DEFAULT_AVATAR_PLACEHOLDER);
   const [customUrl, setCustomUrl] = useState("");
   const [uploadedBase64, setUploadedBase64] = useState("");
 
@@ -1542,12 +1488,7 @@ export default function App() {
 
   // Fun preset graduation photos to choose from
   const PRESET_PORTRAITS = [
-    { name: "Nữ tú thanh tao", url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=600" },
-    { name: "Nam sinh lịch lãm", url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=600" },
-    { name: "Cười duyên rạng rỡ", url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=600" },
-    { name: "Kính cận thông thái", url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=600" },
-    { name: "Góc nghiêng sâu lắng", url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600" },
-    { name: "Nụ cười tỏa nắng", url: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=600" },
+    { name: "Chân dung học sinh", url: DEFAULT_AVATAR_PLACEHOLDER },
   ];
 
   // Synchronize browser history stack for active overlays (e.g. mobile swipe back gesture support)
@@ -1819,9 +1760,9 @@ export default function App() {
     if (imageUrlOption === "preset") {
       finalAvatarUrl = presetImage;
     } else if (imageUrlOption === "url") {
-      finalAvatarUrl = customUrl.trim() || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600";
+      finalAvatarUrl = customUrl.trim() || DEFAULT_AVATAR_PLACEHOLDER;
     } else {
-      finalAvatarUrl = uploadedBase64 || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600";
+      finalAvatarUrl = uploadedBase64 || DEFAULT_AVATAR_PLACEHOLDER;
     }
 
     const classmateId = editingClassmateId || Date.now().toString();
@@ -1907,9 +1848,9 @@ export default function App() {
     if (newColUrlChoice === "preset") {
       finalUrl = newColPreset;
     } else if (newColUrlChoice === "url") {
-      finalUrl = newColUrl.trim() || "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=1200";
+      finalUrl = newColUrl.trim() || DEFAULT_GROUP_PLACEHOLDER;
     } else {
-      finalUrl = newColUpload || "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=1200";
+      finalUrl = newColUpload || DEFAULT_GROUP_PLACEHOLDER;
     }
 
     const colId = editingColPhotoId || "col-" + Date.now().toString();
@@ -1947,9 +1888,9 @@ export default function App() {
     if (newMemUrlChoice === "preset") {
       finalUrl = newMemPreset;
     } else if (newMemUrlChoice === "url") {
-      finalUrl = newMemUrl.trim() || "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=600";
+      finalUrl = newMemUrl.trim() || DEFAULT_MEMORY_PLACEHOLDER;
     } else {
-      finalUrl = newMemUpload || "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=600";
+      finalUrl = newMemUpload || DEFAULT_MEMORY_PLACEHOLDER;
     }
 
     const memId = editingMemPhotoId || "mem-" + Date.now().toString();
@@ -3753,6 +3694,16 @@ export default function App() {
                       <input
                         type="radio"
                         name="img-opt"
+                        checked={imageUrlOption === "preset"}
+                        onChange={() => setImageUrlOption("preset")}
+                        className="text-[#5A5A40] focus:ring-[#5A5A40] accent-[#5A5A40]"
+                      />
+                      <span>Chọn Ảnh Chân Dung Mẫu</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="img-opt"
                         checked={imageUrlOption === "upload"}
                         onChange={() => setImageUrlOption("upload")}
                         className="text-[#5A5A40] focus:ring-[#5A5A40] accent-[#5A5A40]"
@@ -3770,6 +3721,35 @@ export default function App() {
                       <span>Đường Dẫn Ảnh Online (URL)</span>
                     </label>
                   </div>
+
+                  {/* Preset option display */}
+                  {imageUrlOption === "preset" && (
+                    <div className="p-3 bg-[#FEF9E7]/40 border border-dashed border-[#E5E0C0] rounded-sm mb-4">
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-2">
+                        Chọn ảnh chân dung mẫu sẵn có:
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                        {PRESET_PORTRAITS.map((item) => {
+                          const isSelected = presetImage === item.url;
+                          return (
+                            <div
+                              key={item.name}
+                              onClick={() => setPresetImage(item.url)}
+                              className={`aspect-square cursor-pointer relative rounded-sm overflow-hidden border-2 transition-all ${
+                                isSelected ? "border-[#5A5A40] scale-95 shadow-md" : "border-transparent opacity-70 hover:opacity-100"
+                              }`}
+                              title={item.name}
+                            >
+                              <img src={item.url} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <div className="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 px-1 text-[8px] text-white text-center truncate">
+                                {item.name}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Upload option display */}
                   {imageUrlOption === "upload" && (
@@ -4030,7 +4010,18 @@ export default function App() {
                         📥 Tải ảnh trực tiếp từ thiết bị của bạn
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNewColUrlChoice("preset")}
+                          className={`text-xs p-2 rounded-sm border font-medium transition-all cursor-pointer ${
+                            newColUrlChoice === "preset"
+                              ? "bg-[#5A5A40] text-white border-[#5A5A40]"
+                              : "bg-white border-stone-200 text-stone-600 hover:bg-stone-50"
+                          }`}
+                        >
+                          Ảnh tập thể mẫu
+                        </button>
                         <button
                           type="button"
                           onClick={() => setNewColUrlChoice("upload")}
@@ -4057,6 +4048,34 @@ export default function App() {
                     )}
                   </div>
                 </div>
+
+                {newColUrlChoice === "preset" && (
+                  <div className="p-3 bg-[#FEF9E7]/40 border border-dashed border-[#E5E0C0] rounded-sm animate-fadeIn">
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-2">
+                      Chọn ảnh tập thể lớp mẫu sẵn có:
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                      {PRESET_COLLECTIVES.map((item) => {
+                        const isSelected = newColPreset === item.url;
+                        return (
+                          <div
+                            key={item.name}
+                            onClick={() => setNewColPreset(item.url)}
+                            className={`aspect-video cursor-pointer relative rounded-sm overflow-hidden border-2 transition-all ${
+                              isSelected ? "border-[#5A5A40] scale-95 shadow-md" : "border-transparent opacity-70 hover:opacity-100"
+                            }`}
+                            title={item.name}
+                          >
+                            <img src={item.url} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <div className="absolute inset-x-0 bottom-0 bg-black/60 py-0.5 px-1 text-[8px] text-white text-center truncate">
+                              {item.name}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {newColUrlChoice === "url" && (
                   <div className="space-y-1.5 animate-fadeIn">
